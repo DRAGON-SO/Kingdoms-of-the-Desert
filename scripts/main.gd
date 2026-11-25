@@ -16,6 +16,9 @@ var last_pinch_distance := 0.0
 
 var world_config: Dictionary = {}
 
+const WORLD_SIZE := 200.0
+const TERRAIN_DIVISIONS := 150
+
 const ZOOM_MIN := 12.0
 const ZOOM_MAX := 100.0
 const CAMERA_SPEED := 30.0
@@ -47,12 +50,24 @@ func load_world_config():
 
     if FileAccess.file_exists(path):
         var file = FileAccess.open(path, FileAccess.READ)
+
         if file:
             var parsed = JSON.parse_string(file.get_as_text())
+
             if parsed is Dictionary:
                 world_config = parsed.get("world", {})
 
-    print("Kingdoms of the Desert: World configuration loaded")
+    print("Kingdoms of the Desert loaded")
+
+
+# TERRAIN HEIGHT
+
+func terrain_height(x: float, z: float) -> float:
+    var height = sin(x * 0.045) * 0.8
+    height += cos(z * 0.055) * 0.65
+    height += sin((x + z) * 0.025) * 0.9
+
+    return height
 
 
 # MATERIALS
@@ -64,7 +79,9 @@ func make_material(color: Color, roughness := 0.9):
     return mat
 
 
-func add_box(pos: Vector3, dimensions: Vector3, color: Color, parent: Node = null, angle := 0.0):
+func add_box(pos: Vector3, dimensions: Vector3, color: Color,
+        parent: Node = null, angle := 0.0):
+
     var item = MeshInstance3D.new()
     var mesh = BoxMesh.new()
 
@@ -82,7 +99,9 @@ func add_box(pos: Vector3, dimensions: Vector3, color: Color, parent: Node = nul
     return item
 
 
-func add_cylinder(pos: Vector3, radius: float, height: float, color: Color, parent: Node = null):
+func add_cylinder(pos: Vector3, radius: float, height: float,
+        color: Color, parent: Node = null):
+
     var item = MeshInstance3D.new()
     var mesh = CylinderMesh.new()
 
@@ -113,7 +132,7 @@ func create_environment():
     var sky_material = ProceduralSkyMaterial.new()
 
     sky_material.sky_top_color = Color(0.13, 0.35, 0.62)
-    sky_material.sky_horizon_color = Color(0.72, 0.78, 0.84)
+    sky_material.sky_horizon_color = Color(0.78, 0.78, 0.75)
     sky_material.ground_bottom_color = Color(0.38, 0.30, 0.22)
     sky_material.ground_horizon_color = Color(0.72, 0.65, 0.54)
 
@@ -131,25 +150,18 @@ func create_environment():
 
 # DESERT TERRAIN
 
-func terrain_height(x: float, z: float) -> float:
-    var noise = sin(x * 0.045) * 1.3
-    noise += cos(z * 0.055) * 1.0
-    noise += sin((x + z) * 0.025) * 1.5
-    return noise
-
-
 func create_terrain():
     var st = SurfaceTool.new()
     st.begin(Mesh.PRIMITIVE_TRIANGLES)
 
-    var size := 200.0
-    var divisions := 100
-    var step = size / float(divisions)
+    var step = WORLD_SIZE / float(TERRAIN_DIVISIONS)
 
-    for z in range(divisions):
-        for x in range(divisions):
-            var x0 = -size / 2.0 + x * step
-            var z0 = -size / 2.0 + z * step
+    for z in range(TERRAIN_DIVISIONS):
+        for x in range(TERRAIN_DIVISIONS):
+
+            var x0 = -WORLD_SIZE / 2.0 + x * step
+            var z0 = -WORLD_SIZE / 2.0 + z * step
+
             var x1 = x0 + step
             var z1 = z0 + step
 
@@ -179,17 +191,29 @@ func create_terrain():
     st.generate_normals()
 
     var ground = MeshInstance3D.new()
+    ground.name = "DesertTerrain"
     ground.mesh = st.commit()
 
     var mat = StandardMaterial3D.new()
 
-    mat.albedo_texture = load("res://assets/materials/sand_diffuse.png")
+    mat.albedo_texture = load(
+        "res://assets/materials/sand_diffuse.png"
+    )
+
     mat.normal_enabled = true
-    mat.normal_texture = load("res://assets/materials/sand_normal.png")
+    mat.normal_texture = load(
+        "res://assets/materials/sand_normal.png"
+    )
+
     mat.roughness = 1.0
-    mat.roughness_texture = load("res://assets/materials/sand_roughness.png")
+    mat.roughness_texture = load(
+        "res://assets/materials/sand_roughness.png"
+    )
+
     mat.ao_enabled = true
-    mat.ao_texture = load("res://assets/materials/sand_ao.png")
+    mat.ao_texture = load(
+        "res://assets/materials/sand_ao.png"
+    )
 
     ground.material_override = mat
     add_child(ground)
@@ -199,9 +223,17 @@ func create_terrain():
 
 func create_castle():
     var castle = Node3D.new()
+    castle.name = "DesertCastle"
+
+    castle.position.y = terrain_height(0, 0)
     add_child(castle)
 
-    add_box(Vector3(0, 0.4, 0), Vector3(25, 0.8, 25), DARK_STONE, castle)
+    add_box(
+        Vector3(0, 0.4, 0),
+        Vector3(25, 0.8, 25),
+        DARK_STONE,
+        castle
+    )
 
     add_box(Vector3(-11, 2.8, 0), Vector3(2, 5, 22), STONE, castle)
     add_box(Vector3(11, 2.8, 0), Vector3(2, 5, 22), STONE, castle)
@@ -217,12 +249,29 @@ func create_castle():
         for z in [-11.0, 11.0]:
             create_tower(Vector3(x, 0, z), castle)
 
-    add_box(Vector3(0, 3.5, -2), Vector3(10, 7, 9), Color(0.70, 0.59, 0.45), castle)
-    add_box(Vector3(0, 7.2, -2), Vector3(11, 0.7, 10), DARK_STONE, castle)
+    add_box(
+        Vector3(0, 3.5, -2),
+        Vector3(10, 7, 9),
+        Color(0.70, 0.59, 0.45),
+        castle
+    )
+
+    add_box(
+        Vector3(0, 7.2, -2),
+        Vector3(11, 0.7, 10),
+        DARK_STONE,
+        castle
+    )
 
     for x in [-4.5, 4.5]:
         for z in [-6.0, 2.0]:
-            add_cylinder(Vector3(x, 4, z), 1.2, 8, STONE, castle)
+            add_cylinder(
+                Vector3(x, 4, z),
+                1.2,
+                8,
+                STONE,
+                castle
+            )
 
 
 func create_tower(pos: Vector3, parent: Node):
@@ -235,6 +284,7 @@ func create_tower(pos: Vector3, parent: Node):
 
     for i in range(8):
         var angle = TAU * float(i) / 8.0
+
         var x = cos(angle) * 1.7
         var z = sin(angle) * 1.7
 
@@ -250,16 +300,19 @@ func create_tower(pos: Vector3, parent: Node):
 # VILLAGE
 
 func create_village():
-    add_box(
-        Vector3(-19, 0.05, 22),
+    var road = add_box(
+        Vector3(-19, 0, 22),
         Vector3(42, 0.1, 4),
         Color(0.59, 0.41, 0.24)
     )
 
+    road.position.y = terrain_height(-19, 22) + 0.06
+
     for i in range(8):
         var x = -27.0 + float(i % 4) * 10.0
         var z = 20.0 + floor(float(i) / 4.0) * 10.0
-        create_house(Vector3(x, 0, z))
+
+        create_house(Vector3(x, terrain_height(x, z), z))
 
 
 func create_house(pos: Vector3):
@@ -321,6 +374,7 @@ func create_palms():
     ]
 
     for p in positions:
+        p.y = terrain_height(p.x, p.z)
         create_palm(p)
 
 
@@ -368,9 +422,16 @@ func create_rocks():
         mesh.height = 1.5
 
         rock.mesh = mesh
-        rock.position = Vector3(x, 0.5, z)
+        rock.position = Vector3(
+            x,
+            terrain_height(x, z) + 0.5,
+            z
+        )
+
         rock.scale = Vector3(1.5, 0.7, 1.2)
-        rock.material_override = make_material(Color(0.43, 0.36, 0.27))
+        rock.material_override = make_material(
+            Color(0.43, 0.36, 0.27)
+        )
 
         add_child(rock)
 
@@ -387,9 +448,18 @@ func create_oasis():
     mesh.radial_segments = 48
 
     water.mesh = mesh
-    water.position = Vector3(42, 0.3, -35)
 
-    var water_material = make_material(Color(0.08, 0.43, 0.58), 0.2)
+    water.position = Vector3(
+        42,
+        terrain_height(42, -35) + 0.3,
+        -35
+    )
+
+    var water_material = make_material(
+        Color(0.08, 0.43, 0.58),
+        0.2
+    )
+
     water_material.metallic = 0.15
     water.material_override = water_material
 
@@ -438,6 +508,7 @@ func _input(event):
             if touch_points.size() == 2:
                 var points = touch_points.values()
                 last_pinch_distance = points[0].distance_to(points[1])
+
         else:
             touch_points.erase(event.index)
 
@@ -467,13 +538,19 @@ func _input(event):
                     ZOOM_MIN,
                     ZOOM_MAX
                 )
+
                 camera.position.z = zoom_distance
 
             last_pinch_distance = distance
 
             var movement = event.relative
+
             camera_pivot.translate(
-                Vector3(-movement.x * 0.025, 0, -movement.y * 0.025)
+                Vector3(
+                    -movement.x * 0.025,
+                    0,
+                    -movement.y * 0.025
+                )
             )
 
     elif event is InputEventMouseButton:
@@ -486,6 +563,7 @@ func _input(event):
         if event.pressed:
             if event.button_index == MOUSE_BUTTON_WHEEL_UP:
                 change_zoom(-4)
+
             elif event.button_index == MOUSE_BUTTON_WHEEL_DOWN:
                 change_zoom(4)
 
@@ -501,12 +579,21 @@ func _input(event):
 
         elif panning:
             camera_pivot.translate(
-                Vector3(-event.relative.x * 0.05, 0, -event.relative.y * 0.05)
+                Vector3(
+                    -event.relative.x * 0.05,
+                    0,
+                    -event.relative.y * 0.05
+                )
             )
 
 
 func change_zoom(amount: float):
-    zoom_distance = clamp(zoom_distance + amount, ZOOM_MIN, ZOOM_MAX)
+    zoom_distance = clamp(
+        zoom_distance + amount,
+        ZOOM_MIN,
+        ZOOM_MAX
+    )
+
     camera.position.z = zoom_distance
 
 
@@ -532,4 +619,6 @@ func _process(delta):
         camera_pivot.position.y -= CAMERA_SPEED * delta
 
     if movement.length() > 0:
-        camera_pivot.translate(movement.normalized() * CAMERA_SPEED * delta)
+        camera_pivot.translate(
+            movement.normalized() * CAMERA_SPEED * delta
+        )
