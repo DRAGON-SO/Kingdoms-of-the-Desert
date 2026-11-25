@@ -1,0 +1,41 @@
+
+{
+  "world": {
+    "name": "Kingdoms of the Desert",
+    "type": "open_desert",
+    "size": {
+      "width": 2000,
+      "depth": 2000
+    },
+    "terrain": {
+      "enabled": true,
+      "rolling_hills": true,
+      "sand_dunes": true,
+      "rocky_areas": true,
+      "valleys": true
+    },
+    "environment": {
+      "sky": true,
+      "sunlight": true,
+      "dynamic_shadows": true,
+      "fog": true
+    },
+    "vegetation": {
+      "palm_trees": true,
+      "desert_plants": true,
+      "oases": true
+    },
+    "settlements": {
+      "villages": true,
+      "castles": true,
+      "farms": true
+    },
+    "resources": [
+      "wood",
+      "stone",
+      "iron",
+      "wheat",
+      "gold"
+    ]
+  }
+}
