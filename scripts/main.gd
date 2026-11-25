@@ -247,6 +247,7 @@ func create_tower(pos: Vector3, parent: Node):
 # VILLAGE
 
 
+
 func create_village():
 
 	add_box(
@@ -254,12 +255,6 @@ func create_village():
 		Vector3(42, 0.1, 4),
 		Color(0.59, 0.41, 0.24)
 	)
-
-	for i in range(1, 8):
-		var x = -27.0 + float(i % 4) * 10.0
-		var z = 20.0 + floor(float(i) / 4.0) * 10.0
-
-		create_house(Vector3(x, terrain_height(x, z), z))
 
 	create_real_house(Vector3(-27, 0, 20))
 
