@@ -15,7 +15,7 @@ var panning := false
 var touch_points: Dictionary = {}
 var world_config: Dictionary = {}
 
-const WORLD_SIZE := 200.0
+const WORLD_SIZE := 1000.0
 const TERRAIN_DIVISIONS := 150
 
 const ZOOM_MIN := 12.0
