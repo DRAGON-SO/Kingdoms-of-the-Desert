@@ -189,22 +189,21 @@ func create_terrain():
     var ground = MeshInstance3D.new()
     ground.mesh = st.commit()
 
-    var mat = StandardMaterial3D.new()
+        var mat = StandardMaterial3D.new()
 
-mat.albedo_texture = load("res://assets/materials/sand_diffuse.png")
-mat.normal_enabled = true
-mat.normal_texture = load("res://assets/materials/sand_normal.png")
-mat.roughness = 1.0
-mat.roughness_texture = load("res://assets/materials/sand_roughness.png")
-mat.ao_enabled = true
-mat.ao_texture = load("res://assets/materials/sand_ao.png")
+    mat.albedo_texture = load("res://assets/materials/sand_diffuse.png")
+    mat.normal_enabled = true
+    mat.normal_texture = load("res://assets/materials/sand_normal.png")
+    mat.roughness = 1.0
+    mat.roughness_texture = load("res://assets/materials/sand_roughness.png")
+    mat.ao_enabled = true
+    mat.ao_texture = load("res://assets/materials/sand_ao.png")
 
-mat.uv1_scale = Vector3(12, 12, 1)
+    mat.uv1_scale = Vector3(12, 12, 1)
 
-ground.material_override = mat
+    ground.material_override = mat
 
-add_child(ground)
-
+    add_child(ground)
 # CASTLE
 
 func create_castle():
