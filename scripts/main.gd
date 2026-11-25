@@ -194,11 +194,18 @@ func create_terrain():
     ground.name = "DesertTerrain"
     ground.mesh = st.commit()
 
+    # SAND MATERIAL
+
     var mat = StandardMaterial3D.new()
 
+    mat.albedo_color = Color.WHITE
     mat.albedo_texture = load(
         "res://assets/materials/sand_diffuse.png"
     )
+
+    # Better texture quality at long distances
+    mat.texture_filter = BaseMaterial3D.TEXTURE_FILTER_LINEAR_WITH_MIPMAPS_ANISOTROPIC
+    mat.texture_repeat = BaseMaterial3D.TEXTURE_REPEAT_ENABLED
 
     mat.normal_enabled = true
     mat.normal_texture = load(
