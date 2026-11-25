@@ -11,8 +11,9 @@ var camera: Camera3D
 var zoom_distance := 48.0
 var dragging := false
 var panning := false
-var touch_points := {}
-var last_pinch_distance := 0.0
+
+# Touch controls
+var touch_points: Dictionary = {}
 
 var world_config: Dictionary = {}
 
@@ -22,6 +23,10 @@ const TERRAIN_DIVISIONS := 150
 const ZOOM_MIN := 12.0
 const ZOOM_MAX := 100.0
 const CAMERA_SPEED := 30.0
+
+const TOUCH_ROTATION_SPEED := 0.004
+const TOUCH_ZOOM_SPEED := 0.06
+const TOUCH_PAN_SPEED := 0.0015
 
 const SAND := Color(0.76, 0.61, 0.39)
 const STONE := Color(0.68, 0.59, 0.47)
@@ -203,9 +208,11 @@ func create_terrain():
         "res://assets/materials/sand_diffuse.png"
     )
 
-    # Better texture quality at long distances
+    # Improved distant texture filtering
     mat.texture_filter = BaseMaterial3D.TEXTURE_FILTER_LINEAR_WITH_MIPMAPS_ANISOTROPIC
-    mat.texture_repeat = BaseMaterial3D.TEXTURE_REPEAT_ENABLED
+
+    # Correct Godot 4.3 setting
+    mat.texture_repeat = true
 
     mat.normal_enabled = true
     mat.normal_texture = load(
@@ -490,84 +497,123 @@ func create_lighting():
 
 func create_camera():
     camera_pivot = Node3D.new()
+    camera_pivot.name = "CameraPivot"
     add_child(camera_pivot)
 
     camera_pitch = Node3D.new()
+    camera_pitch.name = "CameraPitch"
     camera_pitch.rotation.x = deg_to_rad(-40)
     camera_pivot.add_child(camera_pitch)
 
     camera = Camera3D.new()
+    camera.name = "StrategyCamera"
     camera.position = Vector3(0, 0, zoom_distance)
     camera.fov = 50
     camera.current = true
+    camera.near = 0.1
+    camera.far = 1500.0
 
     camera_pitch.add_child(camera)
 
 
-# INPUT
+# TOUCH INPUT
 
 func _input(event):
 
+    # Finger pressed or released
     if event is InputEventScreenTouch:
+
         if event.pressed:
             touch_points[event.index] = event.position
-
-            if touch_points.size() == 2:
-                var points = touch_points.values()
-                last_pinch_distance = points[0].distance_to(points[1])
 
         else:
             touch_points.erase(event.index)
 
-            if touch_points.size() < 2:
-                last_pinch_distance = 0.0
+        return
 
-    elif event is InputEventScreenDrag:
-        if touch_points.has(event.index):
-            touch_points[event.index] = event.position
+    # Finger movement
+    if event is InputEventScreenDrag:
 
-        if touch_points.size() == 1:
-            camera_pivot.rotate_y(-event.relative.x * 0.004)
+        if not touch_points.has(event.index):
+            return
+
+        var old_positions: Dictionary = touch_points.duplicate()
+
+        touch_points[event.index] = event.position
+
+        var ids = touch_points.keys()
+
+        # ONE FINGER: rotate camera only
+        if ids.size() == 1:
+
+            camera_pivot.rotate_y(
+                -event.relative.x * TOUCH_ROTATION_SPEED
+            )
 
             camera_pitch.rotation.x = clamp(
-                camera_pitch.rotation.x - event.relative.y * 0.004,
+                camera_pitch.rotation.x
+                - event.relative.y * TOUCH_ROTATION_SPEED,
                 deg_to_rad(-80),
                 deg_to_rad(-10)
             )
 
-        elif touch_points.size() >= 2:
-            var points = touch_points.values()
-            var distance = points[0].distance_to(points[1])
+        # TWO FINGERS: zoom and pan only
+        elif ids.size() >= 2:
 
-            if last_pinch_distance > 0:
-                zoom_distance = clamp(
-                    zoom_distance + (last_pinch_distance - distance) * 0.08,
-                    ZOOM_MIN,
-                    ZOOM_MAX
-                )
+            var id_a = ids[0]
+            var id_b = ids[1]
 
-                camera.position.z = zoom_distance
+            var old_a: Vector2 = old_positions[id_a]
+            var old_b: Vector2 = old_positions[id_b]
 
-            last_pinch_distance = distance
+            var new_a: Vector2 = touch_points[id_a]
+            var new_b: Vector2 = touch_points[id_b]
 
-            var movement = event.relative
+            var old_center = (old_a + old_b) * 0.5
+            var new_center = (new_a + new_b) * 0.5
+
+            var old_distance = old_a.distance_to(old_b)
+            var new_distance = new_a.distance_to(new_b)
+
+            # Pinch zoom
+            var zoom_change = old_distance - new_distance
+
+            zoom_distance = clamp(
+                zoom_distance + zoom_change * TOUCH_ZOOM_SPEED,
+                ZOOM_MIN,
+                ZOOM_MAX
+            )
+
+            camera.position.z = zoom_distance
+
+            # Two-finger pan
+            var center_movement = new_center - old_center
+
+            var pan_scale = zoom_distance * TOUCH_PAN_SPEED
 
             camera_pivot.translate(
                 Vector3(
-                    -movement.x * 0.025,
+                    -center_movement.x * pan_scale,
                     0,
-                    -movement.y * 0.025
+                    -center_movement.y * pan_scale
                 )
             )
 
-    elif event is InputEventMouseButton:
+        return
+
+    # MOUSE INPUT
+
+    if event is InputEventMouseButton:
+
         if event.button_index == MOUSE_BUTTON_LEFT:
             dragging = event.pressed
 
-        if event.button_index == MOUSE_BUTTON_RIGHT or event.button_index == MOUSE_BUTTON_MIDDLE:
+        if event.button_index == MOUSE_BUTTON_RIGHT \
+        or event.button_index == MOUSE_BUTTON_MIDDLE:
             panning = event.pressed
 
         if event.pressed:
+
             if event.button_index == MOUSE_BUTTON_WHEEL_UP:
                 change_zoom(-4)
 
@@ -575,16 +621,24 @@ func _input(event):
                 change_zoom(4)
 
     elif event is InputEventMouseMotion:
+
+        # Left mouse button: rotate
         if dragging:
-            camera_pivot.rotate_y(-event.relative.x * 0.004)
+
+            camera_pivot.rotate_y(
+                -event.relative.x * 0.004
+            )
 
             camera_pitch.rotation.x = clamp(
-                camera_pitch.rotation.x - event.relative.y * 0.004,
+                camera_pitch.rotation.x
+                - event.relative.y * 0.004,
                 deg_to_rad(-80),
                 deg_to_rad(-10)
             )
 
+        # Right or middle mouse button: pan
         elif panning:
+
             camera_pivot.translate(
                 Vector3(
                     -event.relative.x * 0.05,
@@ -594,7 +648,10 @@ func _input(event):
             )
 
 
+# ZOOM
+
 func change_zoom(amount: float):
+
     zoom_distance = clamp(
         zoom_distance + amount,
         ZOOM_MIN,
@@ -604,7 +661,10 @@ func change_zoom(amount: float):
     camera.position.z = zoom_distance
 
 
+# KEYBOARD MOVEMENT
+
 func _process(delta):
+
     var movement = Vector3.ZERO
 
     if Input.is_key_pressed(KEY_W):
@@ -626,6 +686,7 @@ func _process(delta):
         camera_pivot.position.y -= CAMERA_SPEED * delta
 
     if movement.length() > 0:
+
         camera_pivot.translate(
             movement.normalized() * CAMERA_SPEED * delta
         )
