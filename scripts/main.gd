@@ -246,6 +246,7 @@ func create_tower(pos: Vector3, parent: Node):
 
 # VILLAGE
 
+
 func create_village():
 
 	add_box(
@@ -254,56 +255,30 @@ func create_village():
 		Color(0.59, 0.41, 0.24)
 	)
 
-	for i in range(8):
+	for i in range(1, 8):
 		var x = -27.0 + float(i % 4) * 10.0
 		var z = 20.0 + floor(float(i) / 4.0) * 10.0
 
 		create_house(Vector3(x, terrain_height(x, z), z))
 
+	create_real_house(Vector3(-27, 0, 20))
 
-func create_house(pos: Vector3):
 
-	var house = Node3D.new()
+func create_real_house(pos: Vector3):
+
+	var house_scene: PackedScene = load(
+		"res://scenes/House.tscn"
+	)
+
+	if house_scene == null:
+		push_error("House scene could not be loaded")
+		return
+
+	var house = house_scene.instantiate()
+	house.name = "RealDesertHouse"
 	house.position = pos
 	add_child(house)
 
-	add_box(
-		Vector3(0, 1.7, 0),
-		Vector3(5.5, 3.4, 5),
-		Color(0.77, 0.65, 0.48),
-		house
-	)
-
-	add_box(
-		Vector3(-0.8, 3.6, 0),
-		Vector3(3.2, 0.5, 6),
-		Color(0.43, 0.21, 0.12),
-		house,
-		-0.45
-	)
-
-	add_box(
-		Vector3(0.8, 3.6, 0),
-		Vector3(3.2, 0.5, 6),
-		Color(0.43, 0.21, 0.12),
-		house,
-		0.45
-	)
-
-	add_box(
-		Vector3(0, 1, 2.56),
-		Vector3(1.1, 2, 0.15),
-		WOOD,
-		house
-	)
-
-	for x in [-1.7, 1.7]:
-		add_box(
-			Vector3(x, 2, 2.58),
-			Vector3(0.8, 0.9, 0.12),
-			DARK_STONE,
-			house
-		)
 
 
 # PALM TREES
