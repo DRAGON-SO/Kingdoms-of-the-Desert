@@ -2,7 +2,7 @@
 extends Node3D
 
 # KINGDOMS OF THE DESERT
-# Godot 4.3 - 3D World Foundation
+# Godot 4.3
 
 var camera_pivot: Node3D
 var camera_pitch: Node3D
@@ -47,10 +47,10 @@ func load_world_config():
 
     if FileAccess.file_exists(path):
         var file = FileAccess.open(path, FileAccess.READ)
-        var parsed = JSON.parse_string(file.get_as_text())
-
-        if parsed is Dictionary:
-            world_config = parsed.get("world", {})
+        if file:
+            var parsed = JSON.parse_string(file.get_as_text())
+            if parsed is Dictionary:
+                world_config = parsed.get("world", {})
 
     print("Kingdoms of the Desert: World configuration loaded")
 
@@ -89,7 +89,7 @@ func add_cylinder(pos: Vector3, radius: float, height: float, color: Color, pare
     mesh.top_radius = radius
     mesh.bottom_radius = radius
     mesh.height = height
-    mesh.radial_segments = 20
+    mesh.radial_segments = 32
 
     item.mesh = mesh
     item.position = pos
@@ -135,7 +135,6 @@ func terrain_height(x: float, z: float) -> float:
     var noise = sin(x * 0.045) * 1.3
     noise += cos(z * 0.055) * 1.0
     noise += sin((x + z) * 0.025) * 1.5
-
     return noise
 
 
@@ -159,29 +158,22 @@ func create_terrain():
             var p01 = Vector3(x0, terrain_height(x0, z1), z1)
             var p11 = Vector3(x1, terrain_height(x1, z1), z1)
 
-            var shade = sin(x0 * 0.18) * 0.025
-            var color = Color(
-                SAND.r + shade,
-                SAND.g + shade,
-                SAND.b + shade
-            )
-
-            st.set_color(color)
+            st.set_uv(Vector2(x0 / 10.0, z0 / 10.0))
             st.add_vertex(p00)
 
-            st.set_color(color)
+            st.set_uv(Vector2(x0 / 10.0, z1 / 10.0))
             st.add_vertex(p01)
 
-            st.set_color(color)
+            st.set_uv(Vector2(x1 / 10.0, z0 / 10.0))
             st.add_vertex(p10)
 
-            st.set_color(color)
+            st.set_uv(Vector2(x1 / 10.0, z0 / 10.0))
             st.add_vertex(p10)
 
-            st.set_color(color)
+            st.set_uv(Vector2(x0 / 10.0, z1 / 10.0))
             st.add_vertex(p01)
 
-            st.set_color(color)
+            st.set_uv(Vector2(x1 / 10.0, z1 / 10.0))
             st.add_vertex(p11)
 
     st.generate_normals()
@@ -189,7 +181,7 @@ func create_terrain():
     var ground = MeshInstance3D.new()
     ground.mesh = st.commit()
 
-        var mat = StandardMaterial3D.new()
+    var mat = StandardMaterial3D.new()
 
     mat.albedo_texture = load("res://assets/materials/sand_diffuse.png")
     mat.normal_enabled = true
@@ -199,11 +191,10 @@ func create_terrain():
     mat.ao_enabled = true
     mat.ao_texture = load("res://assets/materials/sand_ao.png")
 
-    mat.uv1_scale = Vector3(12, 12, 1)
-
     ground.material_override = mat
-
     add_child(ground)
+
+
 # CASTLE
 
 func create_castle():
@@ -212,29 +203,23 @@ func create_castle():
 
     add_box(Vector3(0, 0.4, 0), Vector3(25, 0.8, 25), DARK_STONE, castle)
 
-    # Outer walls
     add_box(Vector3(-11, 2.8, 0), Vector3(2, 5, 22), STONE, castle)
     add_box(Vector3(11, 2.8, 0), Vector3(2, 5, 22), STONE, castle)
     add_box(Vector3(0, 2.8, -11), Vector3(22, 5, 2), STONE, castle)
 
-    # Front entrance
     add_box(Vector3(-6, 2.8, 11), Vector3(10, 5, 2), STONE, castle)
     add_box(Vector3(6, 2.8, 11), Vector3(10, 5, 2), STONE, castle)
 
-    # Gate
     add_box(Vector3(0, 2, 11.2), Vector3(2.8, 4, 0.4), WOOD, castle)
     add_box(Vector3(0, 5.5, 11), Vector3(5, 0.8, 2.5), DARK_STONE, castle)
 
-    # Corner towers
     for x in [-11.0, 11.0]:
         for z in [-11.0, 11.0]:
             create_tower(Vector3(x, 0, z), castle)
 
-    # Central fortress
     add_box(Vector3(0, 3.5, -2), Vector3(10, 7, 9), Color(0.70, 0.59, 0.45), castle)
     add_box(Vector3(0, 7.2, -2), Vector3(11, 0.7, 10), DARK_STONE, castle)
 
-    # Keep towers
     for x in [-4.5, 4.5]:
         for z in [-6.0, 2.0]:
             add_cylinder(Vector3(x, 4, z), 1.2, 8, STONE, castle)
@@ -289,7 +274,6 @@ func create_house(pos: Vector3):
         house
     )
 
-    # Roof
     add_box(
         Vector3(-0.8, 3.6, 0),
         Vector3(3.2, 0.5, 6),
@@ -306,7 +290,6 @@ func create_house(pos: Vector3):
         0.45
     )
 
-    # Door
     add_box(
         Vector3(0, 1, 2.56),
         Vector3(1.1, 2, 0.15),
@@ -314,7 +297,6 @@ func create_house(pos: Vector3):
         house
     )
 
-    # Windows
     for x in [-1.7, 1.7]:
         add_box(
             Vector3(x, 2, 2.58),
@@ -449,7 +431,6 @@ func create_camera():
 
 func _input(event):
 
-    # Touch
     if event is InputEventScreenTouch:
         if event.pressed:
             touch_points[event.index] = event.position
@@ -486,7 +467,6 @@ func _input(event):
                     ZOOM_MIN,
                     ZOOM_MAX
                 )
-
                 camera.position.z = zoom_distance
 
             last_pinch_distance = distance
@@ -496,7 +476,6 @@ func _input(event):
                 Vector3(-movement.x * 0.025, 0, -movement.y * 0.025)
             )
 
-    # Mouse
     elif event is InputEventMouseButton:
         if event.button_index == MOUSE_BUTTON_LEFT:
             dragging = event.pressed
@@ -507,7 +486,6 @@ func _input(event):
         if event.pressed:
             if event.button_index == MOUSE_BUTTON_WHEEL_UP:
                 change_zoom(-4)
-
             elif event.button_index == MOUSE_BUTTON_WHEEL_DOWN:
                 change_zoom(4)
 
