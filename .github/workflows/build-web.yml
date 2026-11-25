@@ -28,6 +28,14 @@ jobs:
           version: 4.3-stable
           export-templates: true
 
+      - name: Check Godot Web Templates
+        run: |
+          godot --version
+          echo "Checking export templates..."
+          ls -lah ~/.local/share/godot/export_templates/4.3.stable/
+          test -f ~/.local/share/godot/export_templates/4.3.stable/web_release.zip
+          test -f ~/.local/share/godot/export_templates/4.3.stable/web_debug.zip
+          
       - name: Check scene file
         run: |
           ls -la scenes
