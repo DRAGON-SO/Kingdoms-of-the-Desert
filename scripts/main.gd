@@ -207,55 +207,17 @@ func create_terrain():
 
 func create_castle():
 
-	var castle = Node3D.new()
+	var castle_scene: PackedScene = load(
+		"res://scenes/Castle.tscn"
+	)
+
+	if castle_scene == null:
+		push_error("Castle scene could not be loaded")
+		return
+
+	var castle = castle_scene.instantiate()
 	castle.name = "DesertCastle"
-
 	add_child(castle)
-
-	add_box(
-		Vector3(0, 0.4, 0),
-		Vector3(25, 0.8, 25),
-		DARK_STONE,
-		castle
-	)
-
-	add_box(Vector3(-11, 2.8, 0), Vector3(2, 5, 22), STONE, castle)
-	add_box(Vector3(11, 2.8, 0), Vector3(2, 5, 22), STONE, castle)
-	add_box(Vector3(0, 2.8, -11), Vector3(22, 5, 2), STONE, castle)
-
-	add_box(Vector3(-6, 2.8, 11), Vector3(10, 5, 2), STONE, castle)
-	add_box(Vector3(6, 2.8, 11), Vector3(10, 5, 2), STONE, castle)
-
-	add_box(Vector3(0, 2, 11.2), Vector3(2.8, 4, 0.4), WOOD, castle)
-	add_box(Vector3(0, 5.5, 11), Vector3(5, 0.8, 2.5), DARK_STONE, castle)
-
-	for x in [-11.0, 11.0]:
-		for z in [-11.0, 11.0]:
-			create_tower(Vector3(x, 0, z), castle)
-
-	add_box(
-		Vector3(0, 3.5, -2),
-		Vector3(10, 7, 9),
-		Color(0.70, 0.59, 0.45),
-		castle
-	)
-
-	add_box(
-		Vector3(0, 7.2, -2),
-		Vector3(11, 0.7, 10),
-		DARK_STONE,
-		castle
-	)
-
-	for x in [-4.5, 4.5]:
-		for z in [-6.0, 2.0]:
-			add_cylinder(
-				Vector3(x, 4, z),
-				1.2,
-				8,
-				STONE,
-				castle
-			)
 
 
 func create_tower(pos: Vector3, parent: Node):
