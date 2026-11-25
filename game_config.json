@@ -1,0 +1,45 @@
+
+{
+  "game_name": "Kingdoms of the Desert",
+  "version": "1.0.0",
+  "engine": "Godot 4.3",
+  "game_mode": {
+    "single_player": true,
+    "multiplayer_ready": true
+  },
+  "graphics": {
+    "style": "realistic",
+    "rendering": "3D",
+    "materials": "PBR",
+    "shadows": true,
+    "dynamic_lighting": true
+  },
+  "camera": {
+    "free_movement": true,
+    "rotation": true,
+    "zoom": true,
+    "touch_controls": true
+  },
+  "world": {
+    "environment": "desert",
+    "vegetation": true,
+    "villages": true,
+    "castles": true
+  },
+  "resources": [
+    "wood",
+    "stone",
+    "iron",
+    "wheat",
+    "bread",
+    "gold"
+  ],
+  "systems": {
+    "building": true,
+    "economy": true,
+    "army": true,
+    "siege": true,
+    "ai_opponents": true,
+    "save_system": true
+  }
+}
