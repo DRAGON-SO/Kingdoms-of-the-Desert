@@ -147,7 +147,7 @@ func create_terrain():
 	ground.name = "DesertTerrain"
 
 	var plane = PlaneMesh.new()
-	plane.size = Vector2(WORLD_SIZE, WORLD_SIZE)
+	plane.size = Vector2(3000.0, 3000.0)
 	plane.subdivide_width = TERRAIN_DIVISIONS
 	plane.subdivide_depth = TERRAIN_DIVISIONS
 
