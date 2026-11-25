@@ -147,14 +147,12 @@ func create_environment():
 	add_child(world)
 
 
-# DESERT TERRAIN
+# DESERT TERRAIN - COLOR DIAGNOSTIC TEST
 
 func create_terrain():
 
 	var ground = MeshInstance3D.new()
 	ground.name = "DesertTerrain"
-
-	# One continuous ground surface
 
 	var plane = PlaneMesh.new()
 	plane.size = Vector2(WORLD_SIZE, WORLD_SIZE)
@@ -164,46 +162,18 @@ func create_terrain():
 	ground.mesh = plane
 	ground.position.y = 0.0
 
-	# Sand material
+	# TEMPORARY TEST MATERIAL
+	# This replaces the sand texture temporarily.
 
 	var mat = StandardMaterial3D.new()
 
-	mat.albedo_color = Color.WHITE
-
-	mat.albedo_texture = load(
-		"res://assets/materials/sand_diffuse.png"
-	)
-
-	mat.texture_filter = BaseMaterial3D.TEXTURE_FILTER_LINEAR_WITH_MIPMAPS_ANISOTROPIC
-	mat.texture_repeat = true
-
-	# Sand texture coverage
-
-	mat.uv1_scale = Vector3(20.0, 20.0, 1.0)
-
-	# Normal map
-
-	mat.normal_enabled = true
-	mat.normal_texture = load(
-		"res://assets/materials/sand_normal.png"
-	)
-	mat.normal_scale = 0.35
-
-	# Roughness
-
+	mat.albedo_color = Color.MAGENTA
 	mat.roughness = 1.0
-	mat.roughness_texture = load(
-		"res://assets/materials/sand_roughness.png"
-	)
 
-	# Ambient occlusion
-
-	mat.ao_enabled = true
-	mat.ao_texture = load(
-		"res://assets/materials/sand_ao.png"
-	)
+	mat.texture_filter = BaseMaterial3D.TEXTURE_FILTER_LINEAR
 
 	ground.material_override = mat
+
 	add_child(ground)
 
 
