@@ -40,7 +40,7 @@ jobs:
         run: |
           set -o pipefail
           mkdir -p build/web
-          godot --headless --path . --export-release "Web" build/web/index.html 2>&1 | tee export.log
+          godot --headless --verbose --path . --export-release "Web" build/web/index.html 2>&1 | tee export.log
           echo "Checking exported files..."
           ls -lah build/web
           test -s build/web/index.html
