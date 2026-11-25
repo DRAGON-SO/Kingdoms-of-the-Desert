@@ -256,7 +256,6 @@ func create_village():
 		Color(0.59, 0.41, 0.24)
 	)
 
-	create_real_house(Vector3(-27, 0, 20))
 
 
 func create_real_house(pos: Vector3):
