@@ -26,7 +26,6 @@ const TOUCH_ROTATION_SPEED := 0.004
 const TOUCH_ZOOM_SPEED := 0.06
 const TOUCH_PAN_SPEED := 0.0015
 
-const SAND := Color(0.76, 0.61, 0.39)
 const STONE := Color(0.68, 0.59, 0.47)
 const DARK_STONE := Color(0.36, 0.29, 0.22)
 const WOOD := Color(0.28, 0.14, 0.07)
@@ -46,8 +45,6 @@ func _ready():
 	create_camera()
 
 
-# CONFIGURATION
-
 func load_world_config():
 	var path = "res://data/world_config.json"
 
@@ -63,13 +60,9 @@ func load_world_config():
 	print("Kingdoms of the Desert loaded")
 
 
-# TEMPORARY FLAT TERRAIN
-
 func terrain_height(x: float, z: float) -> float:
 	return 0.0
 
-
-# MATERIALS
 
 func make_material(color: Color, roughness := 0.9):
 	var mat = StandardMaterial3D.new()
@@ -132,8 +125,9 @@ func create_environment():
 
 	sky_material.sky_top_color = Color(0.13, 0.35, 0.62)
 	sky_material.sky_horizon_color = Color(0.78, 0.78, 0.75)
-	sky_material.ground_bottom_color = Color.MAGENTA
-    sky_material.ground_horizon_color = Color.MAGENTA
+	sky_material.ground_bottom_color = Color(0.38, 0.30, 0.22)
+	sky_material.ground_horizon_color = Color(0.72, 0.65, 0.54)
+
 	sky.sky_material = sky_material
 
 	env.background_mode = Environment.BG_SKY
@@ -146,7 +140,7 @@ func create_environment():
 	add_child(world)
 
 
-# DESERT TERRAIN - COLOR DIAGNOSTIC TEST
+# DESERT TERRAIN
 
 func create_terrain():
 
@@ -161,15 +155,49 @@ func create_terrain():
 	ground.mesh = plane
 	ground.position.y = 0.0
 
-	# TEMPORARY TEST MATERIAL
-	# This replaces the sand texture temporarily.
-
 	var mat = StandardMaterial3D.new()
 
-	mat.albedo_color = Color.MAGENTA
-	mat.roughness = 1.0
+	mat.albedo_color = Color.WHITE
+	mat.albedo_texture = load(
+		"res://assets/materials/sand_diffuse.png"
+	)
 
-	mat.texture_filter = BaseMaterial3D.TEXTURE_FILTER_LINEAR
+	mat.texture_filter = BaseMaterial3D.TEXTURE_FILTER_LINEAR_WITH_MIPMAPS_ANISOTROPIC
+	mat.texture_repeat = true
+
+	# Repeat the sand texture across the larger terrain.
+	mat.uv1_scale = Vector3(100.0, 100.0, 1.0)
+
+	# Normal map
+
+	var normal_map = load(
+		"res://assets/materials/sand_normal.png"
+	)
+
+	if normal_map:
+		mat.normal_enabled = true
+		mat.normal_texture = normal_map
+		mat.normal_scale = 0.35
+
+	# Roughness map
+
+	var roughness_map = load(
+		"res://assets/materials/sand_roughness.png"
+	)
+
+	if roughness_map:
+		mat.roughness = 1.0
+		mat.roughness_texture = roughness_map
+
+	# Ambient occlusion map
+
+	var ao_map = load(
+		"res://assets/materials/sand_ao.png"
+	)
+
+	if ao_map:
+		mat.ao_enabled = true
+		mat.ao_texture = ao_map
 
 	ground.material_override = mat
 
@@ -183,7 +211,6 @@ func create_castle():
 	var castle = Node3D.new()
 	castle.name = "DesertCastle"
 
-	castle.position.y = terrain_height(0, 0)
 	add_child(castle)
 
 	add_box(
@@ -490,8 +517,6 @@ func _input(event):
 
 		var ids = touch_points.keys()
 
-		# ONE FINGER: ROTATE
-
 		if ids.size() == 1:
 
 			camera_pivot.rotate_y(
@@ -504,8 +529,6 @@ func _input(event):
 				deg_to_rad(-80),
 				deg_to_rad(-10)
 			)
-
-		# TWO FINGERS: ZOOM AND PAN
 
 		elif ids.size() >= 2:
 
