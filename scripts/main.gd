@@ -132,9 +132,8 @@ func create_environment():
 
 	sky_material.sky_top_color = Color(0.13, 0.35, 0.62)
 	sky_material.sky_horizon_color = Color(0.78, 0.78, 0.75)
-	sky_material.ground_bottom_color = Color(0.38, 0.30, 0.22)
-	sky_material.ground_horizon_color = Color(0.72, 0.65, 0.54)
-
+	sky_material.ground_bottom_color = Color.MAGENTA
+    sky_material.ground_horizon_color = Color.MAGENTA
 	sky.sky_material = sky_material
 
 	env.background_mode = Environment.BG_SKY
