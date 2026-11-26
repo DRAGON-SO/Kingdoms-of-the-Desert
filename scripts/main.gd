@@ -244,34 +244,52 @@ func create_tower(pos: Vector3, parent: Node):
 		)
 
 
+
 # VILLAGE
-
-
 
 func create_village():
 
+	var village_position = Vector3(20, 0, 15)
+
+	# Village ground area
 	add_box(
-		Vector3(-19, 0.06, 22),
-		Vector3(42, 0.1, 4),
-		Color(0.59, 0.41, 0.24)
+		Vector3(20, 0.06, 15),
+		Vector3(24, 0.12, 20),
+		Color(0.55, 0.38, 0.23)
 	)
 
-	create_real_house(Vector3(55, 0, 35))
+	# Load and create the real desert house
+	var house_scene = load("res://scenes/House.tscn")
 
+	if house_scene == null:
+		push_error("VILLAGE ERROR: House scene not found")
+		return
 
-func create_real_house(pos: Vector3):
+	var house = house_scene.instantiate()
 
+	if house == null:
+		push_error("VILLAGE ERROR: House instantiation failed")
+		return
+
+	house.name = "DesertVillageHouse"
+	house.position = village_position
+	house.scale = Vector3.ONE
+
+	add_child(house)
+
+	# Temporary visible test marker
 	var marker = MeshInstance3D.new()
 	var marker_mesh = BoxMesh.new()
 
-	marker_mesh.size = Vector3(5, 5, 5)
+	marker_mesh.size = Vector3(2, 2, 2)
 	marker.mesh = marker_mesh
-	marker.position = pos + Vector3(0, 2.5, 0)
+	marker.position = village_position + Vector3(0, 3, 0)
 	marker.material_override = make_material(Color.MAGENTA)
 
 	add_child(marker)
 
-	print("VILLAGE TEST MARKER CREATED")
+	print("VILLAGE CREATED SUCCESSFULLY")
+
 
 # PALM TREES
 
