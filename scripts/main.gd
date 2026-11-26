@@ -261,20 +261,31 @@ func create_village():
 
 func create_real_house(pos: Vector3):
 
+	print("HOUSE TEST: Starting load")
+
 	var house_scene: PackedScene = load(
 		"res://scenes/House.tscn"
 	)
 
 	if house_scene == null:
-		push_error("House scene could not be loaded")
+		push_error("HOUSE ERROR: Scene failed to load")
 		return
 
+	print("HOUSE TEST: Scene loaded successfully")
+
 	var house = house_scene.instantiate()
+
+	if house == null:
+		push_error("HOUSE ERROR: Instantiation failed")
+		return
+
 	house.name = "RealDesertHouse"
 	house.position = pos
+	house.scale = Vector3(1, 1, 1)
+
 	add_child(house)
 
-
+	print("HOUSE TEST: House added to world")
 
 # PALM TREES
 
