@@ -17,6 +17,7 @@ var world_environment: WorldEnvironment
 var zoom_distance := 48.0
 var mouse_down := false
 var mouse_dragged := false
+var panning := false
 var mouse_start := Vector2.ZERO
 var touch_points: Dictionary = {}
 var touch_starts: Dictionary = {}
