@@ -20,6 +20,9 @@ var selected_building := ""
 var placed_buildings: Array[Node3D] = []
 var build_status: Label
 
+# Arabic font
+var arabic_font: FontFile
+
 const WORLD_SIZE := 1000.0
 const TERRAIN_DIVISIONS := 150
 
@@ -39,6 +42,7 @@ const GREEN := Color(0.13, 0.32, 0.13)
 
 func _ready():
 
+	load_arabic_font()
 	load_world_config()
 
 	create_environment()
@@ -53,6 +57,20 @@ func _ready():
 	create_camera()
 
 	create_build_ui()
+
+
+func load_arabic_font():
+
+	var font_path = "res://assets/fonts/NotoSansArabic-Regular.ttf"
+
+	if ResourceLoader.exists(font_path):
+
+		arabic_font = load(font_path) as FontFile
+
+		if arabic_font == null:
+			push_warning("Arabic font could not be loaded.")
+	else:
+		push_warning("Arabic font not found: " + font_path)
 
 
 func load_world_config():
@@ -322,6 +340,13 @@ func create_build_ui():
 	var canvas = CanvasLayer.new()
 
 	canvas.name = "BuildInterface"
+
+	# Apply Arabic font to all controls in this interface.
+	if arabic_font != null:
+
+		var ui_theme = Theme.new()
+		ui_theme.default_font = arabic_font
+		canvas.theme = ui_theme
 
 	add_child(canvas)
 
