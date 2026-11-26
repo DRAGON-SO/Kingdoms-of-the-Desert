@@ -4,6 +4,10 @@ extends Node3D
 # KINGDOMS OF THE DESERT
 # Godot 4.3
 
+# --------------------------------------------------
+# CAMERA
+# --------------------------------------------------
+
 var camera_pivot: Node3D
 var camera_pitch: Node3D
 var camera: Camera3D
@@ -11,34 +15,59 @@ var sun: DirectionalLight3D
 var world_environment: WorldEnvironment
 
 var zoom_distance := 48.0
-var dragging := false
-var panning := false
+var mouse_down := false
+var mouse_dragged := false
+var mouse_start := Vector2.ZERO
 var touch_points: Dictionary = {}
-var touch_start: Dictionary = {}
+var touch_starts: Dictionary = {}
+
+const ZOOM_MIN := 12.0
+const ZOOM_MAX := 100.0
+const CAMERA_SPEED := 30.0
+const TOUCH_ROTATION_SPEED := 0.004
+const TOUCH_ZOOM_SPEED := 0.06
+
+# --------------------------------------------------
+# WORLD
+# --------------------------------------------------
 
 var world_config: Dictionary = {}
+var placed_objects: Array[Node3D] = []
 
-# BUILDING SYSTEM
+const HOUSE_TARGET_HEIGHT := 8.0
+const CASTLE_TARGET_HEIGHT := 25.0
+
+# --------------------------------------------------
+# BUILDING
+# --------------------------------------------------
+
 var selected_building := ""
-var placed_buildings: Array[Node3D] = []
 var selected_object: Node3D
-var selected_object_index := -1
 
-# UI
+# --------------------------------------------------
+# LANGUAGE AND UI
+# --------------------------------------------------
+
+var current_language := "ar"
+var arabic_font: FontFile
+
 var canvas: CanvasLayer
 var main_menu: PanelContainer
-var build_panel: PanelContainer
 var settings_panel: PanelContainer
+var build_panel: PanelContainer
 var status_label: Label
-var language_button: Button
-var font_ar: FontFile
+
+var localized_controls: Array[Dictionary] = []
 
 var is_game_started := false
-var current_language := "en"
 
+# --------------------------------------------------
 # SETTINGS
+# --------------------------------------------------
+
 var sunlight_strength := 0.75
-var ambient_strength := 0.45
+var ambient_strength := 0.65
+
 var master_volume := 0.8
 var music_volume := 0.7
 var effects_volume := 0.8
@@ -46,41 +75,27 @@ var effects_volume := 0.8
 var music_bus := -1
 var effects_bus := -1
 
-# INPUT
-var mouse_press_position := Vector2.ZERO
-var mouse_is_down := false
-var touch_moved := false
-
-const ZOOM_MIN := 12.0
-const ZOOM_MAX := 100.0
-const CAMERA_SPEED := 30.0
-
-const TOUCH_ROTATION_SPEED := 0.004
-const TOUCH_ZOOM_SPEED := 0.06
-const TOUCH_PAN_SPEED := 0.0015
-
-const HOUSE_TARGET_HEIGHT := 8.0
-const CASTLE_TARGET_HEIGHT := 25.0
-
-const GREEN := Color(0.13, 0.32, 0.13)
-
+# --------------------------------------------------
+# READY
+# --------------------------------------------------
 
 func _ready():
 
 	load_world_config()
 	load_arabic_font()
+
 	setup_audio_buses()
 
 	create_environment()
 	create_terrain()
-	create_rocks()
-	create_oasis()
 	create_lighting()
 	create_camera()
 
 	create_interface()
 
 	show_main_menu()
+
+	print("Kingdoms of the Desert ready")
 
 
 # --------------------------------------------------
@@ -89,11 +104,18 @@ func _ready():
 
 func load_arabic_font():
 
-	var path = "res://assets/fonts/NotoSansArabic.ttf"
+	var path := "res://assets/fonts/NotoSansArabic-Regular.ttf"
 
 	if ResourceLoader.exists(path):
 
-		font_ar = load(path)
+		arabic_font = load(path) as FontFile
+
+		if arabic_font == null:
+			push_warning("Arabic font could not be loaded.")
+
+	else:
+
+		push_warning("Arabic font not found: " + path)
 
 
 func tr_text(arabic: String, english: String) -> String:
@@ -106,76 +128,94 @@ func tr_text(arabic: String, english: String) -> String:
 
 func apply_font(control: Control):
 
-	if font_ar != null:
-		control.add_theme_font_override("font", font_ar)
+	if arabic_font != null:
+
+		control.add_theme_font_override(
+			"font",
+			arabic_font
+		)
+
+
+func register_text(control: Control, arabic: String, english: String):
+
+	localized_controls.append({
+		"control": control,
+		"ar": arabic,
+		"en": english
+	})
+
+	control.text = tr_text(arabic, english)
+
+	apply_font(control)
 
 
 func set_language(language: String):
 
 	current_language = language
 
-	update_interface_text()
+	for item in localized_controls:
+
+		var control: Control = item["control"]
+
+		if is_instance_valid(control):
+
+			control.text = tr_text(
+				item["ar"],
+				item["en"]
+			)
+
+	update_status_language()
 
 
-func update_interface_text():
+func toggle_language():
 
-	if main_menu == null:
+	if current_language == "ar":
+
+		set_language("en")
+
+	else:
+
+		set_language("ar")
+
+
+func update_status_language():
+
+	if status_label == null:
 		return
 
-	main_menu.get_node("Content/Title").text = tr_text(
-		"ممالك الصحراء",
-		"KINGDOMS OF THE DESERT"
-	)
+	if selected_building == "castle":
 
-	main_menu.get_node("Content/Start").text = tr_text(
-		"بدء اللعبة",
-		"START GAME"
-	)
-
-	main_menu.get_node("Content/Settings").text = tr_text(
-		"الإعدادات",
-		"SETTINGS"
-	)
-
-	main_menu.get_node("Content/Exit").text = tr_text(
-		"إغلاق القائمة",
-		"CLOSE MENU"
-	)
-
-	settings_panel.get_node("Content/SettingsTitle").text = tr_text(
-		"إعدادات اللعبة",
-		"GAME SETTINGS"
-	)
-
-	language_button.text = tr_text(
-		"اللغة: العربية / English",
-		"Language: English / العربية"
-	)
-
-	build_panel.get_node("Content/BuildTitle").text = tr_text(
-		"قائمة البناء",
-		"BUILD MENU"
-	)
-
-	build_panel.get_node("Content/Castle").text = tr_text(
-		"بناء قلعة",
-		"Build Castle"
-	)
-
-	build_panel.get_node("Content/House").text = tr_text(
-		"بناء منزل",
-		"Build House"
-	)
-
-	build_panel.get_node("Content/Cancel").text = tr_text(
-		"إلغاء الاختيار",
-		"Cancel Selection"
-	)
-
-	if status_label != null:
 		status_label.text = tr_text(
-			"اختر عنصرًا للبناء",
-			"Choose an object to build"
+			"اختر مكان القلعة",
+			"Choose castle location"
+		)
+
+	elif selected_building == "house":
+
+		status_label.text = tr_text(
+			"اختر مكان المنزل",
+			"Choose house location"
+		)
+
+	elif selected_building == "palm":
+
+		status_label.text = tr_text(
+			"اختر مكان النخلة",
+			"Choose palm location"
+		)
+
+	elif is_instance_valid(selected_object):
+
+		status_label.text = tr_text(
+			"تم تحديد العنصر",
+			"Object selected"
+		)
+
+	else:
+
+		status_label.text = tr_text(
+			"اختر عنصرًا للبناء أو حدد مبنى موجودًا",
+			"Choose an object to build or select an existing one"
 		)
 
 
@@ -185,35 +225,31 @@ func update_interface_text():
 
 func load_world_config():
 
-	var path = "res://data/world_config.json"
+	var path := "res://data/world_config.json"
 
-	if FileAccess.file_exists(path):
+	if not FileAccess.file_exists(path):
+		return
 
-		var file = FileAccess.open(path, FileAccess.READ)
+	var file := FileAccess.open(path, FileAccess.READ)
 
-		if file:
+	if file == null:
+		return
 
-			var parsed = JSON.parse_string(file.get_as_text())
+	var parsed = JSON.parse_string(file.get_as_text())
 
-			if parsed is Dictionary:
-				world_config = parsed.get("world", {})
+	if parsed is Dictionary:
 
-	print("Kingdoms of the Desert loaded")
-
-
-func terrain_height(_x: float, _z: float) -> float:
-
-	return 0.0
+		world_config = parsed.get("world", {})
 
 
-func make_material(color: Color, roughness := 0.9):
+func make_material(color: Color, roughness := 0.9) -> StandardMaterial3D:
 
-	var mat = StandardMaterial3D.new()
+	var material := StandardMaterial3D.new()
 
-	mat.albedo_color = color
-	mat.roughness = roughness
+	material.albedo_color = color
+	material.roughness = roughness
 
-	return mat
+	return material
 
 
 # --------------------------------------------------
@@ -224,27 +260,28 @@ func create_environment():
 
 	world_environment = WorldEnvironment.new()
 
-	var env = Environment.new()
+	var environment := Environment.new()
 
-	var sky = Sky.new()
-	var sky_material = ProceduralSkyMaterial.new()
+	var sky := Sky.new()
+	var sky_material := ProceduralSkyMaterial.new()
 
 	sky_material.sky_top_color = Color(0.13, 0.35, 0.62)
 	sky_material.sky_horizon_color = Color(0.78, 0.78, 0.75)
+
 	sky_material.ground_bottom_color = Color(0.78, 0.72, 0.60)
 	sky_material.ground_horizon_color = Color(0.78, 0.72, 0.60)
 
 	sky.sky_material = sky_material
 
-	env.background_mode = Environment.BG_SKY
-	env.sky = sky
+	environment.background_mode = Environment.BG_SKY
+	environment.sky = sky
 
-	env.ambient_light_source = Environment.AMBIENT_SOURCE_SKY
-	env.ambient_light_energy = ambient_strength
+	environment.ambient_light_source = Environment.AMBIENT_SOURCE_SKY
+	environment.ambient_light_energy = ambient_strength
 
-	env.tonemap_mode = Environment.TONE_MAPPER_FILMIC
+	environment.tonemap_mode = Environment.TONE_MAPPER_FILMIC
 
-	world_environment.environment = env
+	world_environment.environment = environment
 
 	add_child(world_environment)
 
@@ -255,11 +292,11 @@ func create_environment():
 
 func create_terrain():
 
-	var ground = MeshInstance3D.new()
+	var ground := MeshInstance3D.new()
 
 	ground.name = "DesertTerrain"
 
-	var plane = PlaneMesh.new()
+	var plane := PlaneMesh.new()
 
 	plane.size = Vector2(3000.0, 3000.0)
 	plane.subdivide_width = 150
@@ -267,20 +304,19 @@ func create_terrain():
 
 	ground.mesh = plane
 
-	var mat = StandardMaterial3D.new()
+	var material := StandardMaterial3D.new()
 
-	mat.albedo_color = Color.WHITE
+	material.albedo_color = Color.WHITE
 
 	var diffuse = load(
 		"res://assets/materials/sand_diffuse.png"
 	)
 
 	if diffuse:
-		mat.albedo_texture = diffuse
+		material.albedo_texture = diffuse
 
-	mat.texture_filter = BaseMaterial3D.TEXTURE_FILTER_LINEAR_WITH_MIPMAPS_ANISOTROPIC
-	mat.texture_repeat = true
-	mat.uv1_scale = Vector3(100.0, 100.0, 1.0)
+	material.texture_filter = BaseMaterial3D.TEXTURE_FILTER_LINEAR_WITH_MIPMAPS_ANISOTROPIC
+	material.uv1_scale = Vector3(100.0, 100.0, 1.0)
 
 	var normal_map = load(
 		"res://assets/materials/sand_normal.png"
@@ -288,9 +324,9 @@ func create_terrain():
 
 	if normal_map:
 
-		mat.normal_enabled = true
-		mat.normal_texture = normal_map
-		mat.normal_scale = 0.35
+		material.normal_enabled = true
+		material.normal_texture = normal_map
+		material.normal_scale = 0.35
 
 	var roughness_map = load(
 		"res://assets/materials/sand_roughness.png"
@@ -298,8 +334,8 @@ func create_terrain():
 
 	if roughness_map:
 
-		mat.roughness = 1.0
-		mat.roughness_texture = roughness_map
+		material.roughness = 1.0
+		material.roughness_texture = roughness_map
 
 	var ao_map = load(
 		"res://assets/materials/sand_ao.png"
@@ -307,16 +343,16 @@ func create_terrain():
 
 	if ao_map:
 
-		mat.ao_enabled = true
-		mat.ao_texture = ao_map
+		material.ao_enabled = true
+		material.ao_texture = ao_map
 
-	ground.material_override = mat
+	ground.material_override = material
 
 	add_child(ground)
 
 
 # --------------------------------------------------
-# MODEL HELPERS
+# MODEL BOUNDS
 # --------------------------------------------------
 
 func get_model_bounds(root: Node3D) -> AABB:
@@ -335,10 +371,17 @@ func get_model_bounds(root: Node3D) -> AABB:
 
 		var mesh_node := node as MeshInstance3D
 
-		if mesh_node == null or mesh_node.mesh == null:
+		if mesh_node == null:
 			continue
 
-		var local_transform = root.global_transform.affine_inverse() * mesh_node.global_transform
+		if mesh_node.mesh == null:
+			continue
+
+		var local_transform = (
+			root.global_transform.affine_inverse()
+			* mesh_node.global_transform
+		)
+
 		var transformed = local_transform * mesh_node.get_aabb()
 
 		if not found:
@@ -351,6 +394,7 @@ func get_model_bounds(root: Node3D) -> AABB:
 			result = result.merge(transformed)
 
 	if not found:
+
 		return AABB(Vector3.ZERO, Vector3.ONE)
 
 	return result
@@ -358,11 +402,11 @@ func get_model_bounds(root: Node3D) -> AABB:
 
 func normalize_model(root: Node3D, target_height: float):
 
-	var bounds = get_model_bounds(root)
+	var bounds := get_model_bounds(root)
 
-	var height = maxf(bounds.size.y, 0.01)
+	var height := maxf(bounds.size.y, 0.01)
 
-	var factor = target_height / height
+	var factor := target_height / height
 
 	root.scale = Vector3.ONE * factor
 
@@ -381,18 +425,21 @@ func normalize_model(root: Node3D, target_height: float):
 # CASTLE
 # --------------------------------------------------
 
-func create_castle(pos: Vector3):
+func create_castle(position_value: Vector3) -> Node3D:
 
-	var castle_scene: PackedScene = load(
-		"res://scenes/Castle.tscn"
-	)
+	var path := "res://scenes/Castle.tscn"
 
-	if castle_scene == null:
+	if not ResourceLoader.exists(path):
 
-		push_error("Castle scene could not be loaded")
+		push_error("Castle scene not found")
 		return null
 
-	var castle = castle_scene.instantiate() as Node3D
+	var packed_scene := load(path) as PackedScene
+
+	if packed_scene == null:
+		return null
+
+	var castle := packed_scene.instantiate() as Node3D
 
 	if castle == null:
 		return null
@@ -401,9 +448,9 @@ func create_castle(pos: Vector3):
 
 	add_child(castle)
 
-	castle.global_position = pos
+	castle.global_position = position_value
 
-	placed_buildings.append(castle)
+	placed_objects.append(castle)
 
 	return castle
 
@@ -412,18 +459,21 @@ func create_castle(pos: Vector3):
 # HOUSE
 # --------------------------------------------------
 
-func create_real_house(pos: Vector3):
+func create_real_house(position_value: Vector3) -> Node3D:
 
-	var house_scene: PackedScene = load(
-		"res://scenes/House.tscn"
-	)
+	var path := "res://scenes/House.tscn"
 
-	if house_scene == null:
+	if not ResourceLoader.exists(path):
 
-		push_error("House scene could not be loaded")
+		push_error("House scene not found")
 		return null
 
-	var house = house_scene.instantiate() as Node3D
+	var packed_scene := load(path) as PackedScene
+
+	if packed_scene == null:
+		return null
+
+	var house := packed_scene.instantiate() as Node3D
 
 	if house == null:
 		return null
@@ -432,21 +482,88 @@ func create_real_house(pos: Vector3):
 
 	add_child(house)
 
-	house.global_position = pos
+	house.global_position = position_value
 
 	await get_tree().process_frame
 
+	if not is_instance_valid(house):
+		return null
+
 	normalize_model(house, HOUSE_TARGET_HEIGHT)
 
-	house.global_position = pos
+	house.global_position = position_value
 
-	placed_buildings.append(house)
+	placed_objects.append(house)
 
 	return house
 
 
 # --------------------------------------------------
-# BUILDING INTERFACE
+# PALM TREE
+# Temporary procedural model until a real palm GLB
+# is added to the project.
+# --------------------------------------------------
+
+func create_palm(position_value: Vector3) -> Node3D:
+
+	var palm := Node3D.new()
+
+	palm.name = "PlayerPalm"
+
+	add_child(palm)
+
+	palm.global_position = position_value
+
+	var trunk := MeshInstance3D.new()
+	var trunk_mesh := CylinderMesh.new()
+
+	trunk_mesh.top_radius = 0.22
+	trunk_mesh.bottom_radius = 0.42
+	trunk_mesh.height = 6.0
+	trunk_mesh.radial_segments = 16
+
+	trunk.mesh = trunk_mesh
+	trunk.position.y = 3.0
+
+	trunk.material_override = make_material(
+		Color(0.35, 0.20, 0.10)
+	)
+
+	palm.add_child(trunk)
+
+	for i in range(9):
+
+		var angle := TAU * float(i) / 9.0
+
+		var leaf := MeshInstance3D.new()
+		var leaf_mesh := BoxMesh.new()
+
+		leaf_mesh.size = Vector3(4.0, 0.12, 0.55)
+
+		leaf.mesh = leaf_mesh
+
+		leaf.position = Vector3(
+			cos(angle) * 1.2,
+			5.8,
+			sin(angle) * 1.2
+		)
+
+		leaf.rotation.y = -angle
+		leaf.rotation.z = -0.22
+
+		leaf.material_override = make_material(
+			Color(0.13, 0.32, 0.13)
+		)
+
+		palm.add_child(leaf)
+
+	placed_objects.append(palm)
+
+	return palm
+
+
+# --------------------------------------------------
+# INTERFACE
 # --------------------------------------------------
 
 func create_interface():
@@ -463,9 +580,9 @@ func create_interface():
 
 
 func make_panel(parent: Control, panel_name: String,
-		position_value: Vector2, width: float):
+		position_value: Vector2, width: float) -> PanelContainer:
 
-	var panel = PanelContainer.new()
+	var panel := PanelContainer.new()
 
 	panel.name = panel_name
 	panel.position = position_value
@@ -476,16 +593,27 @@ func make_panel(parent: Control, panel_name: String,
 	return panel
 
 
-func make_button(parent: VBoxContainer, node_name: String,
-		text_value: String, callback: Callable):
+func make_layout(parent: Control) -> VBoxContainer:
 
-	var button = Button.new()
+	var layout := VBoxContainer.new()
+
+	layout.add_theme_constant_override("separation", 8)
+
+	parent.add_child(layout)
+
+	return layout
+
+
+func make_button(parent: VBoxContainer, node_name: String,
+		arabic: String, english: String,
+		callback: Callable) -> Button:
+
+	var button := Button.new()
 
 	button.name = node_name
-	button.text = text_value
-	button.custom_minimum_size = Vector2(210, 48)
+	button.custom_minimum_size = Vector2(220, 44)
 
-	apply_font(button)
+	register_text(button, arabic, english)
 
 	parent.add_child(button)
 
@@ -494,45 +622,51 @@ func make_button(parent: VBoxContainer, node_name: String,
 	return button
 
 
+func make_label(parent: VBoxContainer, node_name: String,
+		arabic: String, english: String) -> Label:
+
+	var label := Label.new()
+
+	label.name = node_name
+	label.horizontal_alignment = HORIZONTAL_ALIGNMENT_CENTER
+
+	register_text(label, arabic, english)
+
+	parent.add_child(label)
+
+	return label
+
+
 # --------------------------------------------------
 # MAIN MENU
 # --------------------------------------------------
 
 func create_main_menu():
 
-	main_menu = PanelContainer.new()
-
-	main_menu.name = "MainMenu"
+	main_menu = make_panel(
+		canvas,
+		"MainMenu",
+		Vector2(20, 20),
+		300
+	)
 
 	main_menu.set_anchors_and_offsets_preset(
 		Control.PRESET_CENTER
 	)
 
-	main_menu.custom_minimum_size = Vector2(300, 300)
+	var content := make_layout(main_menu)
 
-	canvas.add_child(main_menu)
-
-	var content = VBoxContainer.new()
-
-	content.name = "Content"
-
-	content.add_theme_constant_override("separation", 12)
-
-	main_menu.add_child(content)
-
-	var title = Label.new()
-
-	title.name = "Title"
-	title.text = "KINGDOMS OF THE DESERT"
-	title.horizontal_alignment = HORIZONTAL_ALIGNMENT_CENTER
-
-	apply_font(title)
-
-	content.add_child(title)
+	make_label(
+		content,
+		"Title",
+		"ممالك الصحراء",
+		"KINGDOMS OF THE DESERT"
+	)
 
 	make_button(
 		content,
 		"Start",
+		"بدء اللعبة",
 		"START GAME",
 		start_game
 	)
@@ -540,6 +674,7 @@ func create_main_menu():
 	make_button(
 		content,
 		"Settings",
+		"الإعدادات",
 		"SETTINGS",
 		open_settings
 	)
@@ -547,6 +682,7 @@ func create_main_menu():
 	make_button(
 		content,
 		"Exit",
+		"إغلاق القائمة",
 		"CLOSE MENU",
 		close_main_menu
 	)
@@ -555,8 +691,8 @@ func create_main_menu():
 func show_main_menu():
 
 	main_menu.visible = true
-	build_panel.visible = false
 	settings_panel.visible = false
+	build_panel.visible = false
 
 	is_game_started = false
 
@@ -569,6 +705,8 @@ func start_game():
 
 	is_game_started = true
 
+	update_status_language()
+
 
 func close_main_menu():
 
@@ -576,50 +714,50 @@ func close_main_menu():
 
 
 # --------------------------------------------------
-# SETTINGS
+# SETTINGS PANEL
 # --------------------------------------------------
 
 func create_settings_panel():
 
-	settings_panel = PanelContainer.new()
+	settings_panel = make_panel(
+		canvas,
+		"SettingsPanel",
+		Vector2(340, 20),
+		300
+	)
 
-	settings_panel.name = "SettingsPanel"
+	var scroll := ScrollContainer.new()
 
-	settings_panel.position = Vector2(340, 20)
-	settings_panel.custom_minimum_size = Vector2(310, 0)
+	scroll.custom_minimum_size = Vector2(280, 380)
 
-	canvas.add_child(settings_panel)
+	settings_panel.add_child(scroll)
 
-	var content = VBoxContainer.new()
+	var content := VBoxContainer.new()
 
-	content.name = "Content"
 	content.add_theme_constant_override("separation", 8)
 
-	settings_panel.add_child(content)
+	scroll.add_child(content)
 
-	var title = Label.new()
+	make_label(
+		content,
+		"SettingsTitle",
+		"إعدادات اللعبة",
+		"GAME SETTINGS"
+	)
 
-	title.name = "SettingsTitle"
-	title.text = "GAME SETTINGS"
-	title.horizontal_alignment = HORIZONTAL_ALIGNMENT_CENTER
-
-	apply_font(title)
-
-	content.add_child(title)
-
-	language_button = Button.new()
-
-	language_button.text = "Language"
-
-	apply_font(language_button)
-
-	content.add_child(language_button)
-
-	language_button.pressed.connect(toggle_language)
+	make_button(
+		content,
+		"Language",
+		"تغيير اللغة",
+		"CHANGE LANGUAGE",
+		toggle_language
+	)
 
 	add_slider(
 		content,
-		"Sunlight",
+		"SunlightLabel",
+		"شدة ضوء الشمس",
+		"Sunlight strength",
 		0.0,
 		2.0,
 		sunlight_strength,
@@ -628,7 +766,9 @@ func create_settings_panel():
 
 	add_slider(
 		content,
-		"Ambient Light",
+		"AmbientLabel",
+		"الإضاءة العامة",
+		"Ambient lighting",
 		0.0,
 		2.0,
 		ambient_strength,
@@ -637,7 +777,9 @@ func create_settings_panel():
 
 	add_slider(
 		content,
-		"Master Volume",
+		"MasterLabel",
+		"الصوت الرئيسي",
+		"Master volume",
 		0.0,
 		1.0,
 		master_volume,
@@ -646,7 +788,9 @@ func create_settings_panel():
 
 	add_slider(
 		content,
-		"Music Volume",
+		"MusicLabel",
+		"صوت الموسيقى",
+		"Music volume",
 		0.0,
 		1.0,
 		music_volume,
@@ -655,7 +799,9 @@ func create_settings_panel():
 
 	add_slider(
 		content,
-		"Effects Volume",
+		"EffectsLabel",
+		"المؤثرات الصوتية",
+		"Effects volume",
 		0.0,
 		1.0,
 		effects_volume,
@@ -664,7 +810,8 @@ func create_settings_panel():
 
 	make_button(
 		content,
-		"Back",
+		"SettingsBack",
+		"عودة",
 		"BACK",
 		close_settings
 	)
@@ -672,42 +819,38 @@ func create_settings_panel():
 	settings_panel.visible = false
 
 
-func add_slider(parent: VBoxContainer, title_text: String,
+func add_slider(parent: VBoxContainer, node_name: String,
+		arabic: String, english: String,
 		minimum: float, maximum: float,
 		initial: float, callback: Callable):
 
-	var label = Label.new()
+	make_label(
+		parent,
+		node_name,
+		arabic,
+		english
+	)
 
-	label.text = title_text
-	apply_font(label)
-
-	parent.add_child(label)
-
-	var slider = HSlider.new()
+	var slider := HSlider.new()
 
 	slider.min_value = minimum
 	slider.max_value = maximum
 	slider.step = 0.05
 	slider.value = initial
-	slider.custom_minimum_size = Vector2(220, 28)
+
+	slider.custom_minimum_size = Vector2(230, 28)
 
 	parent.add_child(slider)
 
 	slider.value_changed.connect(callback)
 
 
-func toggle_language():
-
-	if current_language == "en":
-		set_language("ar")
-	else:
-		set_language("en")
-
-
 func open_settings():
 
-	settings_panel.visible = true
 	main_menu.visible = false
+	build_panel.visible = false
+
+	settings_panel.visible = true
 
 
 func close_settings():
@@ -715,16 +858,37 @@ func close_settings():
 	settings_panel.visible = false
 
 	if is_game_started:
+
 		build_panel.visible = true
+
 	else:
+
 		main_menu.visible = true
+
+
+# --------------------------------------------------
+# LIGHTING SETTINGS
+# --------------------------------------------------
+
+func create_lighting():
+
+	sun = DirectionalLight3D.new()
+
+	sun.rotation_degrees = Vector3(-48, -35, 0)
+
+	sun.light_energy = sunlight_strength
+	sun.shadow_enabled = true
+
+	sun.directional_shadow_max_distance = 100
+
+	add_child(sun)
 
 
 func set_sunlight(value: float):
 
 	sunlight_strength = value
 
-	if sun:
+	if is_instance_valid(sun):
 		sun.light_energy = value
 
 
@@ -732,7 +896,7 @@ func set_ambient(value: float):
 
 	ambient_strength = value
 
-	if world_environment:
+	if is_instance_valid(world_environment):
 
 		world_environment.environment.ambient_light_energy = value
 
@@ -743,15 +907,18 @@ func set_ambient(value: float):
 
 func setup_audio_buses():
 
-	var master_index = AudioServer.get_bus_index("Master")
+	var master_index := AudioServer.get_bus_index("Master")
 
 	if master_index >= 0:
+
 		AudioServer.set_bus_volume_linear(
 			master_index,
 			master_volume
 		)
 
-	if AudioServer.get_bus_index("Music") == -1:
+	music_bus = AudioServer.get_bus_index("Music")
+
+	if music_bus == -1:
 
 		AudioServer.add_bus()
 
@@ -760,11 +927,9 @@ func setup_audio_buses():
 		AudioServer.set_bus_name(music_bus, "Music")
 		AudioServer.set_bus_send(music_bus, "Master")
 
-	else:
+	effects_bus = AudioServer.get_bus_index("Effects")
 
-		music_bus = AudioServer.get_bus_index("Music")
-
-	if AudioServer.get_bus_index("Effects") == -1:
+	if effects_bus == -1:
 
 		AudioServer.add_bus()
 
@@ -773,19 +938,22 @@ func setup_audio_buses():
 		AudioServer.set_bus_name(effects_bus, "Effects")
 		AudioServer.set_bus_send(effects_bus, "Master")
 
-	else:
-
-		effects_bus = AudioServer.get_bus_index("Effects")
+	set_music_volume(music_volume)
+	set_effects_volume(effects_volume)
 
 
 func set_master_volume(value: float):
 
 	master_volume = value
 
-	var index = AudioServer.get_bus_index("Master")
+	var index := AudioServer.get_bus_index("Master")
 
 	if index >= 0:
-		AudioServer.set_bus_volume_linear(index, value)
+
+		AudioServer.set_bus_volume_linear(
+			index,
+			value
+		)
 
 
 func set_music_volume(value: float):
@@ -793,7 +961,11 @@ func set_music_volume(value: float):
 	music_volume = value
 
 	if music_bus >= 0:
-		AudioServer.set_bus_volume_linear(music_bus, value)
+
+		AudioServer.set_bus_volume_linear(
+			music_bus,
+			value
+		)
 
 
 func set_effects_volume(value: float):
@@ -801,7 +973,11 @@ func set_effects_volume(value: float):
 	effects_volume = value
 
 	if effects_bus >= 0:
-		AudioServer.set_bus_volume_linear(effects_bus, value)
+
+		AudioServer.set_bus_volume_linear(
+			effects_bus,
+			value
+		)
 
 
 # --------------------------------------------------
@@ -810,66 +986,65 @@ func set_effects_volume(value: float):
 
 func create_build_panel():
 
-	build_panel = PanelContainer.new()
+	build_panel = make_panel(
+		canvas,
+		"BuildPanel",
+		Vector2(15, 15),
+		245
+	)
 
-	build_panel.name = "BuildPanel"
+	var content := make_layout(build_panel)
 
-	build_panel.position = Vector2(20, 20)
-	build_panel.custom_minimum_size = Vector2(230, 0)
-
-	canvas.add_child(build_panel)
-
-	var content = VBoxContainer.new()
-
-	content.name = "Content"
-	content.add_theme_constant_override("separation", 7)
-
-	build_panel.add_child(content)
-
-	var title = Label.new()
-
-	title.name = "BuildTitle"
-	title.text = "BUILD MENU"
-	title.horizontal_alignment = HORIZONTAL_ALIGNMENT_CENTER
-
-	apply_font(title)
-
-	content.add_child(title)
+	make_label(
+		content,
+		"BuildTitle",
+		"قائمة البناء",
+		"BUILD MENU"
+	)
 
 	make_button(
 		content,
 		"Castle",
-		"Build Castle",
+		"بناء قلعة",
+		"BUILD CASTLE",
 		func(): choose_building("castle")
 	)
 
 	make_button(
 		content,
 		"House",
-		"Build House",
+		"بناء منزل",
+		"BUILD HOUSE",
 		func(): choose_building("house")
 	)
 
 	make_button(
 		content,
+		"Palm",
+		"زراعة نخلة",
+		"PLANT PALM",
+		func(): choose_building("palm")
+	)
+
+	make_button(
+		content,
 		"Cancel",
-		"Cancel Selection",
+		"إلغاء الاختيار",
+		"CANCEL",
 		cancel_building
 	)
 
 	status_label = Label.new()
 
-	status_label.text = "Choose an object"
-
 	status_label.autowrap_mode = TextServer.AUTOWRAP_WORD
-
-	apply_font(status_label)
+	status_label.custom_minimum_size = Vector2(220, 48)
 
 	content.add_child(status_label)
 
 	make_button(
 		content,
 		"Settings",
+		"الإعدادات",
 		"SETTINGS",
 		open_settings
 	)
@@ -877,56 +1052,44 @@ func create_build_panel():
 	build_panel.visible = false
 
 
-func create_build_panel_text():
-
-	update_interface_text()
-
-
 func choose_building(kind: String):
 
 	selected_building = kind
 	selected_object = null
 
-	if kind == "castle":
-
-		status_label.text = tr_text(
-			"اختر مكان القلعة",
-			"Tap a location for the castle"
-		)
-
-	elif kind == "house":
-
-		status_label.text = tr_text(
-			"اختر مكان المنزل",
-			"Tap a location for the house"
-		)
+	update_status_language()
 
 
 func cancel_building():
 
 	selected_building = ""
-	status_label.text = tr_text(
-		"تم إلغاء الاختيار",
-		"Selection cancelled"
-	)
+
+	update_status_language()
 
 
 # --------------------------------------------------
-# PLACEMENT
+# GROUND POSITION
 # --------------------------------------------------
 
 func screen_to_ground(screen_position: Vector2):
 
-	var ray_origin = camera.project_ray_origin(screen_position)
-	var ray_direction = camera.project_ray_normal(screen_position)
+	if not is_instance_valid(camera):
+		return null
 
-	var ground_plane = Plane(Vector3.UP, 0.0)
+	var ray_origin := camera.project_ray_origin(screen_position)
+	var ray_direction := camera.project_ray_normal(screen_position)
+
+	var ground_plane := Plane(Vector3.UP, 0.0)
 
 	return ground_plane.intersects_ray(
 		ray_origin,
 		ray_direction
 	)
 
+
+# --------------------------------------------------
+# PLACE OBJECT
+# --------------------------------------------------
 
 func place_selected_building(screen_position: Vector2):
 
@@ -942,9 +1105,10 @@ func place_selected_building(screen_position: Vector2):
 
 	if selected_building == "castle":
 
-		var result = create_castle(build_position)
+		var castle := create_castle(build_position)
 
-		if result != null:
+		if castle != null:
+
 			status_label.text = tr_text(
 				"تم وضع القلعة",
 				"Castle placed"
@@ -952,35 +1116,51 @@ func place_selected_building(screen_position: Vector2):
 
 	elif selected_building == "house":
 
-		create_real_house(build_position)
+		var house = await create_real_house(build_position)
 
-		status_label.text = tr_text(
-			"تم وضع المنزل",
-			"House placed"
-		)
+		if house != null:
+
+			status_label.text = tr_text(
+				"تم وضع المنزل",
+				"House placed"
+			)
+
+	elif selected_building == "palm":
+
+		var palm := create_palm(build_position)
+
+		if palm != null:
+
+			status_label.text = tr_text(
+				"تمت زراعة النخلة",
+				"Palm planted"
+			)
 
 	selected_building = ""
 
 
 # --------------------------------------------------
-# OBJECT SELECTION AND EDITING
+# OBJECT SELECTION
 # --------------------------------------------------
 
-func find_object_at_screen_position(screen_position: Vector2):
+func find_object_at_screen_position(screen_position: Vector2) -> Node3D:
 
 	var best_object: Node3D = null
-	var best_distance := 70.0
+	var best_distance := 90.0
 
-	for object in placed_buildings:
+	for object in placed_objects:
 
 		if not is_instance_valid(object):
 			continue
 
-		var screen_point = camera.unproject_position(
+		var screen_point := camera.unproject_position(
 			object.global_position
 		)
 
-		var distance = screen_point.distance_to(screen_position)
+		if camera.is_position_behind(object.global_position):
+			continue
+
+		var distance := screen_point.distance_to(screen_position)
 
 		if distance < best_distance:
 
@@ -996,91 +1176,172 @@ func select_object(object: Node3D):
 
 	if object == null:
 
-		selected_object_index = -1
-
-		status_label.text = tr_text(
-			"لم يتم تحديد مبنى",
-			"No building selected"
-		)
+		update_status_language()
+		remove_object_controls()
 
 		return
 
-	selected_object_index = placed_buildings.find(object)
-
 	status_label.text = tr_text(
-		"تم تحديد المبنى. استخدم أدوات التحكم.",
-		"Object selected. Use the controls."
+		"تم تحديد العنصر. استخدم أدوات التحكم.",
+		"Object selected. Use the editing controls."
 	)
 
 	show_object_controls()
 
 
-func show_object_controls():
+# --------------------------------------------------
+# OBJECT EDITING CONTROLS
+# --------------------------------------------------
 
-	if build_panel == null:
+func remove_object_controls():
+
+	if not is_instance_valid(build_panel):
 		return
 
-	var content = build_panel.get_node("Content")
+	var content := build_panel.get_child(0)
 
 	for child in content.get_children():
 
 		if child.name.begins_with("Edit_"):
+
 			child.queue_free()
 
-	add_edit_button(content, "Edit_Left", "تحريك يسار / Left", Vector3(-2, 0, 0))
-	add_edit_button(content, "Edit_Right", "تحريك يمين / Right", Vector3(2, 0, 0))
-	add_edit_button(content, "Edit_Forward", "تحريك للأمام / Forward", Vector3(0, 0, -2))
-	add_edit_button(content, "Edit_Back", "تحريك للخلف / Back", Vector3(0, 0, 2))
 
-	add_edit_button(content, "Edit_RotateLeft", "تدوير يسار / Rotate Left", Vector3(0, 100, 0))
-	add_edit_button(content, "Edit_RotateRight", "تدوير يمين / Rotate Right", Vector3(0, -100, 0))
+func show_object_controls():
 
-	add_edit_button(content, "Edit_Bigger", "تكبير / Bigger", Vector3(1.1, 1.1, 1.1))
-	add_edit_button(content, "Edit_Smaller", "تصغير / Smaller", Vector3(0.9, 0.9, 0.9))
+	remove_object_controls()
 
-	var delete_button = Button.new()
+	var content := build_panel.get_child(0) as VBoxContainer
 
-	delete_button.name = "Edit_Delete"
-	delete_button.text = tr_text("حذف المبنى", "Delete Object")
+	add_edit_button(
+		content,
+		"Edit_Left",
+		"تحريك يسار",
+		"Move left",
+		"move_left"
+	)
 
-	content.add_child(delete_button)
+	add_edit_button(
+		content,
+		"Edit_Right",
+		"تحريك يمين",
+		"Move right",
+		"move_right"
+	)
 
-	delete_button.pressed.connect(delete_selected_object)
+	add_edit_button(
+		content,
+		"Edit_Forward",
+		"تحريك للأمام",
+		"Move forward",
+		"move_forward"
+	)
+
+	add_edit_button(
+		content,
+		"Edit_Back",
+		"تحريك للخلف",
+		"Move backward",
+		"move_back"
+	)
+
+	add_edit_button(
+		content,
+		"Edit_RotateLeft",
+		"تدوير يسار",
+		"Rotate left",
+		"rotate_left"
+	)
+
+	add_edit_button(
+		content,
+		"Edit_RotateRight",
+		"تدوير يمين",
+		"Rotate right",
+		"rotate_right"
+	)
+
+	add_edit_button(
+		content,
+		"Edit_Bigger",
+		"تكبير",
+		"Increase size",
+		"bigger"
+	)
+
+	add_edit_button(
+		content,
+		"Edit_Smaller",
+		"تصغير",
+		"Decrease size",
+		"smaller"
+	)
+
+	add_edit_button(
+		content,
+		"Edit_Delete",
+		"حذف العنصر",
+		"Delete object",
+		"delete"
+	)
 
 
-func add_edit_button(parent: VBoxContainer, node_name: String,
-		button_text: String, operation: Vector3):
+func add_edit_button(parent: VBoxContainer,
+		node_name: String,
+		arabic: String,
+		english: String,
+		operation: String):
 
-	var button = Button.new()
+	var button := Button.new()
 
 	button.name = node_name
-	button.text = button_text
+	button.custom_minimum_size = Vector2(220, 40)
+
+	register_text(button, arabic, english)
 
 	parent.add_child(button)
 
 	button.pressed.connect(
-		func(): edit_selected_object(node_name, operation)
+		func(): edit_selected_object(operation)
 	)
 
 
-func edit_selected_object(operation_name: String, operation: Vector3):
+func edit_selected_object(operation: String):
 
 	if not is_instance_valid(selected_object):
 		return
 
-	match operation_name:
+	match operation:
 
-		"Edit_Left", "Edit_Right", "Edit_Forward", "Edit_Back":
+		"move_left":
+			selected_object.global_position.x -= 2.0
 
-			selected_object.position += operation
+		"move_right":
+			selected_object.global_position.x += 2.0
 
-		"Edit_RotateLeft", "Edit_RotateRight":
+		"move_forward":
+			selected_object.global_position.z -= 2.0
 
-			selected_object.rotate_y(deg_to_rad(operation.y))
+		"move_back":
+			selected_object.global_position.z += 2.0
 
-		"Edit_Bigger", "Edit_Smaller":
+		"rotate_left":
+			selected_object.rotate_y(deg_to_rad(15.0))
 
-			selected_object.scale *= operation
+		"rotate_right":
+			selected_object.rotate_y(deg_to_rad(-15.0))
+
+		"bigger":
+
+			selected_object.scale *= 1.1
+
+		"smaller":
+
+			selected_object.scale *= 0.9
+
+		"delete":
+
+			delete_selected_object()
 
 
 func delete_selected_object():
@@ -1088,92 +1349,217 @@ func delete_selected_object():
 	if not is_instance_valid(selected_object):
 		return
 
-	placed_buildings.erase(selected_object)
+	placed_objects.erase(selected_object)
 
 	selected_object.queue_free()
 
 	selected_object = null
 
+	remove_object_controls()
+
 	status_label.text = tr_text(
-		"تم حذف المبنى",
+		"تم حذف العنصر",
 		"Object deleted"
 	)
 
 
 # --------------------------------------------------
-# ROCKS AND OASIS
+# INPUT
+# UI controls receive their events before this function.
 # --------------------------------------------------
 
-func create_rocks():
+func _unhandled_input(event):
 
-	for i in range(40):
+	if not is_game_started:
+		return
 
-		var x = sin(float(i) * 12.7) * 65
-		var z = cos(float(i) * 8.3) * 65
+	if event is InputEventScreenTouch:
 
-		if Vector2(x, z).length() < 20:
-			continue
+		if event.pressed:
 
-		var rock = MeshInstance3D.new()
-		var mesh = SphereMesh.new()
+			touch_points[event.index] = event.position
+			touch_starts[event.index] = event.position
 
-		mesh.radius = 1
-		mesh.height = 1.5
+		else:
 
-		rock.mesh = mesh
+			if touch_points.has(event.index):
 
-		rock.position = Vector3(x, 0.5, z)
-		rock.scale = Vector3(1.5, 0.7, 1.2)
+				var start_position: Vector2 = touch_starts.get(
+					event.index,
+					event.position
+				)
 
-		rock.material_override = make_material(
-			Color(0.43, 0.36, 0.27)
-		)
+				var movement := start_position.distance_to(
+					event.position
+				)
 
-		add_child(rock)
+				if movement < 15.0 and touch_points.size() == 1:
+
+					handle_world_tap(event.position)
+
+			touch_points.erase(event.index)
+			touch_starts.erase(event.index)
+
+		return
+
+	if event is InputEventScreenDrag:
+
+		if not touch_points.has(event.index):
+			return
+
+		var old_positions: Dictionary = touch_points.duplicate()
+
+		touch_points[event.index] = event.position
+
+		var ids = touch_points.keys()
+
+		if ids.size() == 1:
+
+			if selected_building == "":
+
+				camera_pivot.rotate_y(
+					-event.relative.x * TOUCH_ROTATION_SPEED
+				)
+
+				camera_pitch.rotation.x = clamp(
+					camera_pitch.rotation.x
+					- event.relative.y * TOUCH_ROTATION_SPEED,
+					deg_to_rad(-80),
+					deg_to_rad(-10)
+				)
+
+		elif ids.size() >= 2:
+
+			var id_a = ids[0]
+			var id_b = ids[1]
+
+			var old_a: Vector2 = old_positions[id_a]
+			var old_b: Vector2 = old_positions[id_b]
+
+			var new_a: Vector2 = touch_points[id_a]
+			var new_b: Vector2 = touch_points[id_b]
+
+			var old_distance := old_a.distance_to(old_b)
+			var new_distance := new_a.distance_to(new_b)
+
+			zoom_distance = clamp(
+				zoom_distance
+				+ (old_distance - new_distance) * TOUCH_ZOOM_SPEED,
+				ZOOM_MIN,
+				ZOOM_MAX
+			)
+
+			camera.position.z = zoom_distance
+
+			var old_center := (old_a + old_b) * 0.5
+			var new_center := (new_a + new_b) * 0.5
+
+			var movement := new_center - old_center
+
+			camera_pivot.translate(
+				Vector3(
+					-movement.x * zoom_distance * 0.0015,
+					0,
+					-movement.y * zoom_distance * 0.0015
+				)
+			)
+
+		return
+
+	if event is InputEventMouseButton:
+
+		if event.button_index == MOUSE_BUTTON_LEFT:
+
+			if event.pressed:
+
+				mouse_down = true
+				mouse_dragged = false
+				mouse_start = event.position
+
+			else:
+
+				if mouse_down and not mouse_dragged:
+
+					handle_world_tap(event.position)
+
+				mouse_down = false
+
+		if event.pressed:
+
+			if event.button_index == MOUSE_BUTTON_WHEEL_UP:
+
+				change_zoom(-4.0)
+
+			elif event.button_index == MOUSE_BUTTON_WHEEL_DOWN:
+
+				change_zoom(4.0)
+
+		if event.button_index == MOUSE_BUTTON_RIGHT:
+
+			panning = event.pressed
+
+	elif event is InputEventMouseMotion:
+
+		if mouse_down:
+
+			if mouse_start.distance_to(event.position) > 8.0:
+
+				mouse_dragged = true
+
+				camera_pivot.rotate_y(
+					-event.relative.x * 0.004
+				)
+
+				camera_pitch.rotation.x = clamp(
+					camera_pitch.rotation.x
+					- event.relative.y * 0.004,
+					deg_to_rad(-80),
+					deg_to_rad(-10)
+				)
+
+		elif panning:
+
+			camera_pivot.translate(
+				Vector3(
+					-event.relative.x * 0.05,
+					0,
+					-event.relative.y * 0.05
+				)
+			)
 
 
-func create_oasis():
+# --------------------------------------------------
+# WORLD TAP
+# --------------------------------------------------
 
-	var water = MeshInstance3D.new()
-	var mesh = CylinderMesh.new()
+func handle_world_tap(position_value: Vector2):
 
-	mesh.top_radius = 8
-	mesh.bottom_radius = 8
-	mesh.height = 0.15
-	mesh.radial_segments = 48
+	if selected_building != "":
 
-	water.mesh = mesh
+		place_selected_building(position_value)
 
-	water.position = Vector3(42, 0.3, -35)
+	else:
 
-	var water_material = make_material(
-		Color(0.08, 0.43, 0.58),
-		0.2
+		var object := find_object_at_screen_position(position_value)
+
+		select_object(object)
+
+
+# --------------------------------------------------
+# CAMERA ZOOM
+# --------------------------------------------------
+
+func change_zoom(amount: float):
+
+	zoom_distance = clamp(
+		zoom_distance + amount,
+		ZOOM_MIN,
+		ZOOM_MAX
 	)
 
-	water_material.metallic = 0.15
+	if is_instance_valid(camera):
 
-	water.material_override = water_material
-
-	add_child(water)
-
-
-# --------------------------------------------------
-# LIGHTING
-# --------------------------------------------------
-
-func create_lighting():
-
-	sun = DirectionalLight3D.new()
-
-	sun.rotation_degrees = Vector3(-48, -35, 0)
-
-	sun.light_energy = sunlight_strength
-
-	sun.shadow_enabled = true
-	sun.directional_shadow_max_distance = 100
-
-	add_child(sun)
+		camera.position.z = zoom_distance
 
 
 # --------------------------------------------------
@@ -1198,6 +1584,7 @@ func create_camera():
 	camera = Camera3D.new()
 
 	camera.name = "StrategyCamera"
+
 	camera.position = Vector3(0, 0, zoom_distance)
 
 	camera.fov = 50
@@ -1209,192 +1596,15 @@ func create_camera():
 
 
 # --------------------------------------------------
-# INPUT
+# KEYBOARD MOVEMENT
 # --------------------------------------------------
-
-func _input(event):
-
-	if not is_game_started:
-		return
-
-	if event is InputEventScreenTouch:
-
-		if event.pressed:
-
-			touch_points[event.index] = event.position
-			touch_start[event.index] = event.position
-
-		else:
-
-			if touch_points.has(event.index):
-
-				var start_position: Vector2 = touch_start.get(
-					event.index,
-					event.position
-				)
-
-				var movement = start_position.distance_to(event.position)
-
-				if movement < 15.0 and touch_points.size() == 1:
-
-					handle_world_tap(event.position)
-
-			touch_points.erase(event.index)
-			touch_start.erase(event.index)
-
-		return
-
-	if event is InputEventScreenDrag:
-
-		if not touch_points.has(event.index):
-			return
-
-		var old_positions = touch_points.duplicate()
-
-		touch_points[event.index] = event.position
-
-		var ids = touch_points.keys()
-
-		if ids.size() == 1:
-
-			var start_position: Vector2 = touch_start.get(
-				event.index,
-				event.position
-			)
-
-			if start_position.distance_to(event.position) > 15.0:
-				touch_moved = true
-
-			if selected_building == "":
-				camera_pivot.rotate_y(
-					-event.relative.x * TOUCH_ROTATION_SPEED
-				)
-
-				camera_pitch.rotation.x = clamp(
-					camera_pitch.rotation.x
-					- event.relative.y * TOUCH_ROTATION_SPEED,
-					deg_to_rad(-80),
-					deg_to_rad(-10)
-				)
-
-		elif ids.size() >= 2:
-
-			var id_a = ids[0]
-			var id_b = ids[1]
-
-			var old_a: Vector2 = old_positions[id_a]
-			var old_b: Vector2 = old_positions[id_b]
-
-			var new_a: Vector2 = touch_points[id_a]
-			var new_b: Vector2 = touch_points[id_b]
-
-			var old_distance = old_a.distance_to(old_b)
-			var new_distance = new_a.distance_to(new_b)
-
-			zoom_distance = clamp(
-				zoom_distance
-				+ (old_distance - new_distance) * TOUCH_ZOOM_SPEED,
-				ZOOM_MIN,
-				ZOOM_MAX
-			)
-
-			camera.position.z = zoom_distance
-
-		return
-
-	if event is InputEventMouseButton:
-
-		if event.button_index == MOUSE_BUTTON_LEFT:
-
-			if event.pressed:
-
-				mouse_is_down = true
-				mouse_press_position = event.position
-
-			else:
-
-				if mouse_is_down:
-
-					var movement = mouse_press_position.distance_to(
-						event.position
-					)
-
-					if movement < 8.0:
-						handle_world_tap(event.position)
-
-				mouse_is_down = false
-
-		if event.pressed:
-
-			if event.button_index == MOUSE_BUTTON_WHEEL_UP:
-				change_zoom(-4)
-
-			elif event.button_index == MOUSE_BUTTON_WHEEL_DOWN:
-				change_zoom(4)
-
-		if event.button_index == MOUSE_BUTTON_RIGHT:
-			panning = event.pressed
-
-	elif event is InputEventMouseMotion:
-
-		if mouse_is_down and mouse_press_position.distance_to(event.position) > 8.0:
-
-			camera_pivot.rotate_y(
-				-event.relative.x * 0.004
-			)
-
-			camera_pitch.rotation.x = clamp(
-				camera_pitch.rotation.x
-				- event.relative.y * 0.004,
-				deg_to_rad(-80),
-				deg_to_rad(-10)
-			)
-
-		elif panning:
-
-			camera_pivot.translate(
-				Vector3(
-					-event.relative.x * 0.05,
-					0,
-					-event.relative.y * 0.05
-				)
-			)
-
-
-func handle_world_tap(position: Vector2):
-
-	if selected_building != "":
-
-		place_selected_building(position)
-
-	else:
-
-		var object = find_object_at_screen_position(position)
-
-		select_object(object)
-
-
-# --------------------------------------------------
-# ZOOM AND MOVEMENT
-# --------------------------------------------------
-
-func change_zoom(amount: float):
-
-	zoom_distance = clamp(
-		zoom_distance + amount,
-		ZOOM_MIN,
-		ZOOM_MAX
-	)
-
-	camera.position.z = zoom_distance
-
 
 func _process(delta):
 
 	if not is_game_started:
 		return
 
-	var movement = Vector3.ZERO
+	var movement := Vector3.ZERO
 
 	if Input.is_key_pressed(KEY_W):
 		movement.z -= 1
