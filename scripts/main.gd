@@ -912,9 +912,9 @@ func setup_audio_buses():
 
 	if master_index >= 0:
 
-		AudioServer.set_bus_volume_linear(
+		AudioServer.set_bus_volume_db(
 			master_index,
-			master_volume
+			linear_to_db(maxf(master_volume, 0.0001))
 		)
 
 	music_bus = AudioServer.get_bus_index("Music")
@@ -951,9 +951,9 @@ func set_master_volume(value: float):
 
 	if index >= 0:
 
-		AudioServer.set_bus_volume_linear(
+		AudioServer.set_bus_volume_db(
 			index,
-			value
+			linear_to_db(maxf(value, 0.0001))
 		)
 
 
@@ -963,9 +963,9 @@ func set_music_volume(value: float):
 
 	if music_bus >= 0:
 
-		AudioServer.set_bus_volume_linear(
+		AudioServer.set_bus_volume_db(
 			music_bus,
-			value
+			linear_to_db(maxf(value, 0.0001))
 		)
 
 
@@ -975,9 +975,9 @@ func set_effects_volume(value: float):
 
 	if effects_bus >= 0:
 
-		AudioServer.set_bus_volume_linear(
+		AudioServer.set_bus_volume_db(
 			effects_bus,
-			value
+			linear_to_db(maxf(value, 0.0001))
 		)
 
 
