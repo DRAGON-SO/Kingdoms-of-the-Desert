@@ -15,6 +15,11 @@ var panning := false
 var touch_points: Dictionary = {}
 var world_config: Dictionary = {}
 
+# BUILD SYSTEM
+var selected_building := ""
+var placed_buildings: Array[Node3D] = []
+var build_status: Label
+
 const WORLD_SIZE := 1000.0
 const TERRAIN_DIVISIONS := 150
 
@@ -33,25 +38,33 @@ const GREEN := Color(0.13, 0.32, 0.13)
 
 
 func _ready():
+
 	load_world_config()
+
 	create_environment()
 	create_terrain()
-	create_castle()
-	create_village()
-	create_palms()
+
+	# No automatic castle, houses or palms.
+	# The player chooses their locations.
+
 	create_rocks()
 	create_oasis()
 	create_lighting()
 	create_camera()
 
+	create_build_ui()
+
 
 func load_world_config():
+
 	var path = "res://data/world_config.json"
 
 	if FileAccess.file_exists(path):
+
 		var file = FileAccess.open(path, FileAccess.READ)
 
 		if file:
+
 			var parsed = JSON.parse_string(file.get_as_text())
 
 			if parsed is Dictionary:
@@ -61,13 +74,17 @@ func load_world_config():
 
 
 func terrain_height(x: float, z: float) -> float:
+
 	return 0.0
 
 
 func make_material(color: Color, roughness := 0.9):
+
 	var mat = StandardMaterial3D.new()
+
 	mat.albedo_color = color
 	mat.roughness = roughness
+
 	return mat
 
 
@@ -78,6 +95,7 @@ func add_box(pos: Vector3, dimensions: Vector3, color: Color,
 	var mesh = BoxMesh.new()
 
 	mesh.size = dimensions
+
 	item.mesh = mesh
 	item.position = pos
 	item.rotation.y = angle
@@ -117,6 +135,7 @@ func add_cylinder(pos: Vector3, radius: float, height: float,
 # SKY AND ENVIRONMENT
 
 func create_environment():
+
 	var world = WorldEnvironment.new()
 	var env = Environment.new()
 
@@ -126,7 +145,8 @@ func create_environment():
 	sky_material.sky_top_color = Color(0.13, 0.35, 0.62)
 	sky_material.sky_horizon_color = Color(0.78, 0.78, 0.75)
 	sky_material.ground_bottom_color = Color(0.78, 0.72, 0.60)
-    sky_material.ground_horizon_color = Color(0.78, 0.72, 0.60)
+	sky_material.ground_horizon_color = Color(0.78, 0.72, 0.60)
+
 	sky.sky_material = sky_material
 
 	env.background_mode = Environment.BG_SKY
@@ -136,6 +156,7 @@ func create_environment():
 	env.tonemap_mode = Environment.TONE_MAPPER_FILMIC
 
 	world.environment = env
+
 	add_child(world)
 
 
@@ -144,9 +165,11 @@ func create_environment():
 func create_terrain():
 
 	var ground = MeshInstance3D.new()
+
 	ground.name = "DesertTerrain"
 
 	var plane = PlaneMesh.new()
+
 	plane.size = Vector2(3000.0, 3000.0)
 	plane.subdivide_width = TERRAIN_DIVISIONS
 	plane.subdivide_depth = TERRAIN_DIVISIONS
@@ -157,6 +180,7 @@ func create_terrain():
 	var mat = StandardMaterial3D.new()
 
 	mat.albedo_color = Color.WHITE
+
 	mat.albedo_texture = load(
 		"res://assets/materials/sand_diffuse.png"
 	)
@@ -164,37 +188,33 @@ func create_terrain():
 	mat.texture_filter = BaseMaterial3D.TEXTURE_FILTER_LINEAR_WITH_MIPMAPS_ANISOTROPIC
 	mat.texture_repeat = true
 
-	# Repeat the sand texture across the larger terrain.
 	mat.uv1_scale = Vector3(100.0, 100.0, 1.0)
-
-	# Normal map
 
 	var normal_map = load(
 		"res://assets/materials/sand_normal.png"
 	)
 
 	if normal_map:
+
 		mat.normal_enabled = true
 		mat.normal_texture = normal_map
 		mat.normal_scale = 0.35
-
-	# Roughness map
 
 	var roughness_map = load(
 		"res://assets/materials/sand_roughness.png"
 	)
 
 	if roughness_map:
+
 		mat.roughness = 1.0
 		mat.roughness_texture = roughness_map
-
-	# Ambient occlusion map
 
 	var ao_map = load(
 		"res://assets/materials/sand_ao.png"
 	)
 
 	if ao_map:
+
 		mat.ao_enabled = true
 		mat.ao_texture = ao_map
 
@@ -203,65 +223,32 @@ func create_terrain():
 	add_child(ground)
 
 
-# CASTLE
+# CASTLE MODEL
 
-func create_castle():
+func create_castle(pos: Vector3):
 
 	var castle_scene: PackedScene = load(
 		"res://scenes/Castle.tscn"
 	)
 
 	if castle_scene == null:
+
 		push_error("Castle scene could not be loaded")
-		return
+		return null
 
 	var castle = castle_scene.instantiate()
-	castle.name = "DesertCastle"
+
+	castle.name = "PlayerCastle"
+	castle.position = pos
+
 	add_child(castle)
 
+	placed_buildings.append(castle)
 
-func create_tower(pos: Vector3, parent: Node):
-
-	var tower = Node3D.new()
-	tower.position = pos
-	parent.add_child(tower)
-
-	add_cylinder(Vector3(0, 4, 0), 2.1, 8, STONE, tower)
-	add_cylinder(Vector3(0, 8.2, 0), 2.3, 0.5, DARK_STONE, tower)
-
-	for i in range(8):
-		var angle = TAU * float(i) / 8.0
-
-		var x = cos(angle) * 1.7
-		var z = sin(angle) * 1.7
-
-		add_box(
-			Vector3(x, 8.9, z),
-			Vector3(0.8, 1.1, 0.8),
-			STONE,
-			tower,
-			angle
-		)
+	return castle
 
 
-
-
-# VILLAGE
-
-func create_village():
-
-	# Village path - away from the castle
-	add_box(
-		Vector3(100, 0.06, 100),
-		Vector3(42, 0.1, 4),
-		Color(0.59, 0.41, 0.24)
-	)
-
-	# Real house far from the castle and path
-	create_real_house(Vector3(100, 0, 115))
-
-
-# REAL DESERT HOUSE
+# HOUSE MODEL
 
 func create_real_house(pos: Vector3):
 
@@ -270,49 +257,31 @@ func create_real_house(pos: Vector3):
 	)
 
 	if house_scene == null:
-		push_error("HOUSE ERROR: Cannot load House.tscn")
-		return
+
+		push_error("House scene could not be loaded")
+		return null
 
 	var house = house_scene.instantiate()
 
-	if house == null:
-		push_error("HOUSE ERROR: Cannot instantiate house")
-		return
-
-	house.name = "RealDesertHouse"
+	house.name = "PlayerDesertHouse"
 	house.position = pos
-	house.scale = Vector3.ONE
 
 	add_child(house)
 
-	print("REAL DESERT HOUSE CREATED")
+	placed_buildings.append(house)
+
+	return house
 
 
-
-# PALM TREES
-
-func create_palms():
-
-	var positions = [
-		Vector3(-30, 0, -20),
-		Vector3(30, 0, -22),
-		Vector3(-32, 0, 18),
-		Vector3(32, 0, 18),
-		Vector3(-25, 0, 40),
-		Vector3(22, 0, 38),
-		Vector3(40, 0, 0),
-		Vector3(-40, 0, 0)
-	]
-
-	for p in positions:
-		p.y = terrain_height(p.x, p.z)
-		create_palm(p)
-
+# PALM TREE
 
 func create_palm(pos: Vector3):
 
 	var palm = Node3D.new()
+
+	palm.name = "PlayerPalm"
 	palm.position = pos
+
 	add_child(palm)
 
 	add_cylinder(
@@ -324,10 +293,15 @@ func create_palm(pos: Vector3):
 	)
 
 	for i in range(8):
+
 		var angle = TAU * float(i) / 8.0
 
 		var leaf = add_box(
-			Vector3(cos(angle) * 1.7, 5, sin(angle) * 1.7),
+			Vector3(
+				cos(angle) * 1.7,
+				5,
+				sin(angle) * 1.7
+			),
 			Vector3(3.8, 0.18, 0.65),
 			GREEN,
 			palm,
@@ -336,12 +310,179 @@ func create_palm(pos: Vector3):
 
 		leaf.rotation.z = -0.25
 
+	placed_buildings.append(palm)
+
+	return palm
+
+
+# BUILD INTERFACE
+
+func create_build_ui():
+
+	var canvas = CanvasLayer.new()
+
+	canvas.name = "BuildInterface"
+
+	add_child(canvas)
+
+	var panel = PanelContainer.new()
+
+	panel.position = Vector2(20, 20)
+	panel.custom_minimum_size = Vector2(190, 0)
+
+	canvas.add_child(panel)
+
+	var layout = VBoxContainer.new()
+
+	panel.add_child(layout)
+
+	var title = Label.new()
+
+	title.text = "مملكة الصحراء"
+	title.horizontal_alignment = HORIZONTAL_ALIGNMENT_CENTER
+
+	layout.add_child(title)
+
+	var separator = HSeparator.new()
+
+	layout.add_child(separator)
+
+	add_build_button(layout, "بناء قلعة", "castle")
+	add_build_button(layout, "بناء منزل", "house")
+	add_build_button(layout, "زراعة نخلة", "palm")
+
+	var cancel_button = Button.new()
+
+	cancel_button.text = "إلغاء الاختيار"
+	cancel_button.custom_minimum_size = Vector2(170, 44)
+
+	layout.add_child(cancel_button)
+
+	cancel_button.pressed.connect(func():
+
+		selected_building = ""
+		update_build_status()
+	)
+
+	build_status = Label.new()
+
+	build_status.text = "اختر ما تريد بناءه"
+	build_status.autowrap_mode = TextServer.AUTOWRAP_WORD
+
+	layout.add_child(build_status)
+
+
+func add_build_button(parent: VBoxContainer,
+		label_text: String, building_type: String):
+
+	var button = Button.new()
+
+	button.text = label_text
+	button.custom_minimum_size = Vector2(170, 48)
+
+	parent.add_child(button)
+
+	button.pressed.connect(func():
+
+		selected_building = building_type
+		update_build_status()
+	)
+
+
+func update_build_status():
+
+	if build_status == null:
+		return
+
+	match selected_building:
+
+		"castle":
+			build_status.text = "القلعة مختارة. المس مكان البناء."
+
+		"house":
+			build_status.text = "المنزل مختار. المس مكان البناء."
+
+		"palm":
+			build_status.text = "النخلة مختارة. المس مكان الزراعة."
+
+		_:
+			build_status.text = "اختر ما تريد بناءه."
+
+
+# MANUAL BUILDING
+
+func _unhandled_input(event):
+
+	if event is InputEventScreenTouch:
+
+		if event.pressed:
+			place_selected_building(event.position)
+
+	elif event is InputEventMouseButton:
+
+		if event.pressed and event.button_index == MOUSE_BUTTON_LEFT:
+
+			place_selected_building(event.position)
+
+
+func place_selected_building(screen_position: Vector2):
+
+	if selected_building == "":
+		return
+
+	if camera == null:
+		return
+
+	var ray_origin = camera.project_ray_origin(screen_position)
+	var ray_direction = camera.project_ray_normal(screen_position)
+
+	var ground_plane = Plane(Vector3.UP, 0.0)
+
+	var hit = ground_plane.intersects_ray(
+		ray_origin,
+		ray_direction
+	)
+
+	if hit == null:
+		return
+
+	var build_position: Vector3 = hit
+
+	var building: Node3D = null
+
+	match selected_building:
+
+		"castle":
+
+			building = create_castle(build_position)
+
+		"house":
+
+			building = create_real_house(build_position)
+
+		"palm":
+
+			building = create_palm(build_position)
+
+	if building != null:
+
+		print(
+			"Building placed: ",
+			selected_building,
+			" at ",
+			build_position
+		)
+
+		selected_building = ""
+		update_build_status()
+
 
 # ROCKS
 
 func create_rocks():
 
 	for i in range(40):
+
 		var x = sin(float(i) * 12.7) * 65
 		var z = cos(float(i) * 8.3) * 65
 
@@ -355,6 +496,7 @@ func create_rocks():
 		mesh.height = 1.5
 
 		rock.mesh = mesh
+
 		rock.position = Vector3(
 			x,
 			terrain_height(x, z) + 0.5,
@@ -362,6 +504,7 @@ func create_rocks():
 		)
 
 		rock.scale = Vector3(1.5, 0.7, 1.2)
+
 		rock.material_override = make_material(
 			Color(0.43, 0.36, 0.27)
 		)
@@ -395,6 +538,7 @@ func create_oasis():
 	)
 
 	water_material.metallic = 0.15
+
 	water.material_override = water_material
 
 	add_child(water)
@@ -419,15 +563,20 @@ func create_lighting():
 func create_camera():
 
 	camera_pivot = Node3D.new()
+
 	camera_pivot.name = "CameraPivot"
+
 	add_child(camera_pivot)
 
 	camera_pitch = Node3D.new()
+
 	camera_pitch.name = "CameraPitch"
 	camera_pitch.rotation.x = deg_to_rad(-40)
+
 	camera_pivot.add_child(camera_pitch)
 
 	camera = Camera3D.new()
+
 	camera.name = "StrategyCamera"
 	camera.position = Vector3(0, 0, zoom_distance)
 	camera.fov = 50
@@ -445,8 +594,11 @@ func _input(event):
 	if event is InputEventScreenTouch:
 
 		if event.pressed:
+
 			touch_points[event.index] = event.position
+
 		else:
+
 			touch_points.erase(event.index)
 
 		return
@@ -457,6 +609,7 @@ func _input(event):
 			return
 
 		var old_positions: Dictionary = touch_points.duplicate()
+
 		touch_points[event.index] = event.position
 
 		var ids = touch_points.keys()
@@ -502,6 +655,7 @@ func _input(event):
 			camera.position.z = zoom_distance
 
 			var center_movement = new_center - old_center
+
 			var pan_scale = zoom_distance * TOUCH_PAN_SPEED
 
 			camera_pivot.translate(
