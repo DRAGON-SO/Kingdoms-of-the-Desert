@@ -653,12 +653,15 @@ func show_object_controls():
 	var ring := MeshInstance3D.new()
 	ring.name = "RotationRing"
 	var torus := TorusMesh.new()
-	torus.inner_radius = 0.10
-	torus.outer_radius = 0.16
-	torus.rings = 48
-	torus.ring_segments = 12
+	# Use a full-size torus so the ring remains clearly visible around buildings.
+	torus.inner_radius = 0.92
+	torus.outer_radius = 1.0
+	torus.rings = 64
+	torus.ring_segments = 16
 	ring.mesh = torus
+	# TorusMesh is rotated into the horizontal XZ plane and lifted above the ground.
 	ring.rotation_degrees.x = 90.0
+	ring.position.y = 0.75
 	var radius := 4.0 * maxf(selected_object.scale.x, 0.5)
 	ring.scale = Vector3.ONE * radius
 	var ring_material := StandardMaterial3D.new()
