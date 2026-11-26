@@ -145,7 +145,7 @@ func register_text(control: Control, arabic: String, english: String):
 		"en": english
 	})
 
-	control.text = tr_text(arabic, english)
+	control.set("text", tr_text(arabic, english))
 
 	apply_font(control)
 
@@ -160,10 +160,10 @@ func set_language(language: String):
 
 		if is_instance_valid(control):
 
-			control.text = tr_text(
+			control.set("text", tr_text(
 				item["ar"],
 				item["en"]
-			)
+			))
 
 	update_status_language()
 
@@ -580,7 +580,7 @@ func create_interface():
 	create_build_panel()
 
 
-func make_panel(parent: Control, panel_name: String,
+func make_panel(parent: Node, panel_name: String,
 		position_value: Vector2, width: float) -> PanelContainer:
 
 	var panel := PanelContainer.new()
