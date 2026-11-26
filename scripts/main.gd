@@ -286,6 +286,13 @@ func create_real_house(pos: Vector3):
 	add_child(house)
 
 	print("HOUSE TEST: House added to world")
+	var marker = MeshInstance3D.new()
+	var marker_mesh = BoxMesh.new()
+	marker_mesh.size = Vector3(3, 3, 3)
+	marker.mesh = marker_mesh
+	marker.position = Vector3(0, 1.5, 0)
+	marker.material_override = make_material(Color.RED)
+	house.add_child(marker)
 
 # PALM TREES
 
