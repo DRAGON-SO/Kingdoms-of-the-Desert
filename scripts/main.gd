@@ -245,50 +245,48 @@ func create_tower(pos: Vector3, parent: Node):
 
 
 
+
 # VILLAGE
 
 func create_village():
 
-	var village_position = Vector3(20, 0, 15)
-
-	# Village ground area
+	# Village path - away from the castle
 	add_box(
-		Vector3(20, 0.06, 15),
-		Vector3(24, 0.12, 20),
-		Color(0.55, 0.38, 0.23)
+		Vector3(100, 0.06, 100),
+		Vector3(42, 0.1, 4),
+		Color(0.59, 0.41, 0.24)
 	)
 
-	# Load and create the real desert house
-	var house_scene = load("res://scenes/House.tscn")
+	# Real house far from the castle and path
+	create_real_house(Vector3(100, 0, 115))
+
+
+# REAL DESERT HOUSE
+
+func create_real_house(pos: Vector3):
+
+	var house_scene: PackedScene = load(
+		"res://scenes/House.tscn"
+	)
 
 	if house_scene == null:
-		push_error("VILLAGE ERROR: House scene not found")
+		push_error("HOUSE ERROR: Cannot load House.tscn")
 		return
 
 	var house = house_scene.instantiate()
 
 	if house == null:
-		push_error("VILLAGE ERROR: House instantiation failed")
+		push_error("HOUSE ERROR: Cannot instantiate house")
 		return
 
-	house.name = "DesertVillageHouse"
-	house.position = village_position
+	house.name = "RealDesertHouse"
+	house.position = pos
 	house.scale = Vector3.ONE
 
 	add_child(house)
 
-	# Temporary visible test marker
-	var marker = MeshInstance3D.new()
-	var marker_mesh = BoxMesh.new()
+	print("REAL DESERT HOUSE CREATED")
 
-	marker_mesh.size = Vector3(2, 2, 2)
-	marker.mesh = marker_mesh
-	marker.position = village_position + Vector3(0, 3, 0)
-	marker.material_override = make_material(Color.MAGENTA)
-
-	add_child(marker)
-
-	print("VILLAGE CREATED SUCCESSFULLY")
 
 
 # PALM TREES
